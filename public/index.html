@@ -162,15 +162,15 @@ td.ec.tdc{outline:1.5px solid var(--acbor);outline-offset:-1px}
 .kbdot:hover{transform:scale(1.12)}
 .kbdot.leer{background:transparent;color:var(--tx3);border:1px solid var(--bor)}
 .kbdot.gruen{background:#639922;color:#fff}
-.kbdot.gelb{background:#EF9F27;color:#fff}
-.kbdot.orange{background:#D85A30;color:#fff}
-.kbdot.rot{background:#E24B4A;color:#fff}
+.kbdot.gelb{background:#FFD21A;color:#7a5c00}
+.kbdot.orange{background:#F07E13;color:#fff}
+.kbdot.rot{background:#E81C1C;color:#fff}
 .kbdot.abwesend{background:#6E6E64;color:#fff;border-radius:50%}
 .kbdot.unentschuldigt{background:#8B1A1A;color:#fff;border-radius:50%}
 .note-ind{position:absolute;top:3px;right:3px;width:5px;height:5px;border-radius:50%;background:var(--acbor)}
 .trend-bar{display:flex;gap:2px;justify-content:center}
 .tb{width:8px;height:8px;border-radius:2px}
-.tb.gruen{background:#639922}.tb.gelb{background:#EF9F27}.tb.orange{background:#D85A30}.tb.rot{background:#E24B4A}.tb.leer{background:var(--bor)}.tb.abwesend{background:#6E6E64;border-radius:50%}.tb.unentschuldigt{background:#8B1A1A;border-radius:50%}
+.tb.gruen{background:#639922}.tb.gelb{background:#FFD21A}.tb.orange{background:#F07E13}.tb.rot{background:#E81C1C}.tb.leer{background:var(--bor)}.tb.abwesend{background:#6E6E64;border-radius:50%}.tb.unentschuldigt{background:#8B1A1A;border-radius:50%}
 .kl-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
 .kltab{padding:6px 14px;border-radius:20px;border:.5px solid var(--borm);background:transparent;cursor:pointer;font-size:12px;color:var(--tx2);font-family:inherit;transition:all .12s}
 .kltab.active{background:var(--acbg);border-color:var(--acbor);color:var(--actx);font-weight:500}
@@ -206,9 +206,9 @@ td.ec.tdc{outline:1.5px solid var(--acbor);outline-offset:-1px}
 .colbtn.active{border-color:var(--borm)}
 .colbtn.c-leer .cb-dot{background:var(--sur2);border:.5px solid var(--borm)}.colbtn.c-leer{color:var(--tx3)}
 .colbtn.c-gruen .cb-dot{background:#639922}.colbtn.c-gruen{color:#27500A}
-.colbtn.c-gelb .cb-dot{background:#EF9F27}.colbtn.c-gelb{color:#633806}
-.colbtn.c-orange .cb-dot{background:#D85A30}.colbtn.c-orange{color:#712B13}
-.colbtn.c-rot .cb-dot{background:#E24B4A}.colbtn.c-rot{color:#791F1F}
+.colbtn.c-gelb .cb-dot{background:#FFD21A}.colbtn.c-gelb{color:#633806}
+.colbtn.c-orange .cb-dot{background:#F07E13}.colbtn.c-orange{color:#712B13}
+.colbtn.c-rot .cb-dot{background:#E81C1C}.colbtn.c-rot{color:#791F1F}
 .colbtn.c-abwesend .cb-dot{background:#6E6E64;border-radius:50%}.colbtn.c-abwesend{color:#4A4A44}
 .colbtn.c-unentschuldigt .cb-dot{background:#8B1A1A;border-radius:50%}.colbtn.c-unentschuldigt{color:#5f1212}
 .mfoot{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
@@ -784,9 +784,9 @@ function renderKlassen(c,ta){
   } else {
     tbl=`<div class="kb-legend">
       <span class="kll"><span style="width:11px;height:11px;border-radius:3px;background:#639922;display:inline-block"></span>Aktiv</span>
-      <span class="kll"><span style="width:11px;height:11px;border-radius:3px;background:#EF9F27;display:inline-block"></span>Gut</span>
-      <span class="kll"><span style="width:11px;height:11px;border-radius:3px;background:#D85A30;display:inline-block"></span>Wenig</span>
-      <span class="kll"><span style="width:11px;height:11px;border-radius:3px;background:#E24B4A;display:inline-block"></span>Nicht aktiv</span>
+      <span class="kll"><span style="width:11px;height:11px;border-radius:3px;background:#FFD21A;display:inline-block"></span>Gut</span>
+      <span class="kll"><span style="width:11px;height:11px;border-radius:3px;background:#F07E13;display:inline-block"></span>Wenig</span>
+      <span class="kll"><span style="width:11px;height:11px;border-radius:3px;background:#E81C1C;display:inline-block"></span>Nicht aktiv</span>
       <span class="kll"><span style="width:12px;height:12px;border-radius:50%;background:#6E6E64;display:inline-block"></span>Abwesend</span>
       <span class="kll"><span style="width:12px;height:12px;border-radius:50%;background:#8B1A1A;display:inline-block"></span>Unentschuldigt</span>
       <span class="kll"><span style="width:5px;height:5px;border-radius:50%;background:var(--acbor);display:inline-block"></span>Notiz</span>
