@@ -3,6 +3,7 @@
 // Lädt und validiert die Umgebungskonfiguration aus .env
 require('dotenv').config();
 
+const fs = require('fs');
 const path = require('path');
 
 function bool(v, def = false) {
@@ -23,10 +24,29 @@ const config = {
     .split(',')
     .map((s) => s.trim().toLowerCase())
     .filter(Boolean),
+  // LDAP-/Active-Directory-Konfiguration. Zwei Modi (siehe server/auth/ldap.js):
+  //   - Direkt-Bind (empfohlen): LDAP_BIND_USER_TEMPLATE gesetzt -> kein
+  //     Service-Account nötig, der Nutzer bindet mit eigener Kennung + Passwort.
+  //   - Service-Account: LDAP_BIND_DN/LDAP_BIND_PW eines Lese-Kontos, der Nutzer
+  //     wird per Filter gesucht und danach mit seiner DN verifiziert.
   ldap: {
     url: process.env.LDAP_URL || '',
-    bindDnTemplate: process.env.LDAP_BIND_DN_TEMPLATE || '',
-    tls: bool(process.env.LDAP_TLS, false),
+    baseDn: process.env.LDAP_BASE_DN || '',
+    // Suchfilter mit Platzhalter {{username}} (AD-Default: sAMAccountName).
+    userFilter: process.env.LDAP_USER_FILTER || '(sAMAccountName={{username}})',
+    // Attribut für die stabile Login-Kennung bzw. den Anzeigenamen.
+    loginAttr: process.env.LDAP_LOGIN_ATTR || 'sAMAccountName',
+    nameAttr: process.env.LDAP_NAME_ATTR || 'displayName',
+    // Direkt-Bind-Vorlage, z. B. `SNRD\{{username}}` oder `{{username}}@snrd.local`.
+    userBindTemplate: process.env.LDAP_BIND_USER_TEMPLATE || '',
+    // Service-Account (nur ohne Direkt-Bind-Vorlage benötigt).
+    bindDn: process.env.LDAP_BIND_DN || '',
+    bindPw: process.env.LDAP_BIND_PW || '',
+    // TLS für ldaps:// — Pfad zur PEM der internen CA (empfohlen) bzw.
+    // Zertifikatsprüfung abschalten (nur Notlösung in vertrauenswürdigen Netzen).
+    tlsCaPath: process.env.LDAP_TLS_CA_PFAD || '',
+    tlsRejectUnauthorized:
+      String(process.env.LDAP_TLS_REJECT_UNAUTHORIZED || '').toLowerCase() !== 'false',
   },
 };
 
@@ -50,7 +70,25 @@ function validate() {
   }
   if (config.authMode === 'ldap') {
     if (!config.ldap.url) errors.push('AUTH_MODE=ldap, aber LDAP_URL fehlt.');
-    if (!config.ldap.bindDnTemplate) errors.push('AUTH_MODE=ldap, aber LDAP_BIND_DN_TEMPLATE fehlt.');
+    if (!config.ldap.baseDn) errors.push('AUTH_MODE=ldap, aber LDAP_BASE_DN fehlt.');
+    // Ohne Direkt-Bind-Vorlage läuft der Service-Account-Modus -> Lese-Konto Pflicht.
+    if (!config.ldap.userBindTemplate) {
+      if (!config.ldap.bindDn) {
+        errors.push(
+          'AUTH_MODE=ldap im Service-Account-Modus, aber LDAP_BIND_DN fehlt ' +
+            '(oder LDAP_BIND_USER_TEMPLATE für den Direkt-Bind setzen).'
+        );
+      }
+      if (!config.ldap.bindPw) {
+        errors.push(
+          'AUTH_MODE=ldap im Service-Account-Modus, aber LDAP_BIND_PW fehlt ' +
+            '(oder LDAP_BIND_USER_TEMPLATE für den Direkt-Bind setzen).'
+        );
+      }
+    }
+    if (config.ldap.tlsCaPath && !fs.existsSync(config.ldap.tlsCaPath)) {
+      errors.push(`LDAP_TLS_CA_PFAD zeigt auf keine existierende Datei: ${config.ldap.tlsCaPath}`);
+    }
   } else if (config.authMode !== 'dev') {
     errors.push(`Unbekannter AUTH_MODE "${config.authMode}" (erlaubt: dev, ldap).`);
   }

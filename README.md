@@ -64,10 +64,26 @@ npm start
 | AUTH_MODE | Verhalten |
 |-----------|-----------|
 | `dev`     | Test-Login: beliebiger Benutzername, keine Passwortprüfung. Optional per `DEV_ALLOWED_USERS` einschränken. |
-| `ldap`    | Echter LDAP-Bind. Konfiguration über `LDAP_URL` und `LDAP_BIND_DN_TEMPLATE` in `.env` (kein Code-Change nötig). |
+| `ldap`    | Echter LDAP-/AD-Bind. Vollständig über `.env` konfiguriert (kein Code-Change nötig). |
 
-Der **Dateiname der Nutzer-DB wird aus dem (LDAP-)Benutzernamen** abgeleitet (Whitelist +
-Hash-Suffix gegen Kollisionen und Path-Traversal).
+Das LDAP-Modul (`server/auth/ldap.js`) ist aus der **Notentabellen-SPA** übernommen, damit
+beide Schul-Apps dieselbe erprobte Anmeldelogik gegen den AD nutzen. Es kennt zwei Modi:
+
+- **Direkt-Bind** (empfohlen): `LDAP_BIND_USER_TEMPLATE` gesetzt (z. B. `SNRD\{{username}}`
+  oder `{{username}}@snrd.local`). Der Nutzer bindet mit eigener Kennung + Passwort – **kein
+  Service-Account nötig**. Anzeigename/Kennung werden danach best effort gelesen.
+- **Service-Account**: ohne Template – ein Lese-Konto (`LDAP_BIND_DN`/`LDAP_BIND_PW`) sucht den
+  Nutzer per `LDAP_USER_FILTER`, danach wird mit dessen DN + Passwort verifiziert.
+
+Für `ldaps://` mit interner CA den PEM-Pfad in `LDAP_TLS_CA_PFAD` hinterlegen (Notlösung:
+`LDAP_TLS_REJECT_UNAUTHORIZED=false`). Alle Variablen sind in `.env.example` dokumentiert.
+
+Der **Dateiname und Schlüssel der Nutzer-DB werden aus der stabilen Verzeichnis-Kennung**
+(`loginSub`, i. d. R. der `sAMAccountName`, klein geschrieben) abgeleitet – Whitelist +
+Hash-Suffix gegen Kollisionen und Path-Traversal.
+
+**Diagnose:** `AUTH_MODE=ldap npm run ldap-test -- <benutzer> <passwort>` testet den Login
+direkt ohne Webserver und gibt Konfiguration sowie den vollständigen Fehler aus.
 
 ## Datenmodell
 
@@ -88,13 +104,26 @@ data/              verschlüsselte Pro-Nutzer-DBs  (nicht im Repo)
 
 ## Roadmap
 
-- **Phase B:** LDAP scharfschalten (`AUTH_MODE=ldap`), sobald der LDAP-Endpoint bereitsteht.
+- **Phase B:** LDAP ist implementiert (`server/auth/ldap.js`) – nur noch `AUTH_MODE=ldap`
+  setzen und die `.env` befüllen, sobald der LDAP-Endpoint bereitsteht.
 - **Phase C:** Synchronisierung der verschlüsselten DB-Dateien über Nextcloud (WebDAV).
+
+## Tests
+
+```bash
+npm test          # Node-eigener Test-Runner (node --test), keine Zusatzpakete
+```
+
+Abgedeckt sind Datei-/Schlüsselableitung (`keys`), das RFC-4515-Filter-Escaping,
+der Auth-Fluss (dev + ldap, LDAP gestubbt) sowie die Konfigurations-Validierung.
 
 ## Produktion
 
 HTTPS via Reverse-Proxy, `SECURE_COOKIES=true`, persistenter Session-Store,
 Backups des `data/`-Verzeichnisses **und** des `MASTER_KEY`.
+
+Ausführliche Anleitung für den Plesk-Server (Node.js/Passenger, Umgebungs­variablen,
+Dokumentenstamm, Deploy nach `git pull`): **[docs/DEPLOYMENT-PLESK.md](docs/DEPLOYMENT-PLESK.md)**.
 
 ## Lizenz
 
