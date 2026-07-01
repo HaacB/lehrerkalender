@@ -521,7 +521,11 @@ function renderWoche(c,ta){
   const isThisWk=getWeekNum(today)===S.week&&today.getFullYear()===S.year;
   const wk=`${S.year}-${S.week}`;
   const {plan,ab,planIdx}=getWeekSP(S.week,S.year);
-  const spGrid=plan[ab]||plan.A;
+  // Robust gegen fehlende/leere Stundenpläne: ohne Plan (S.stundenplaene leer)
+  // ist plan undefined -> hier NICHT abstürzen, sondern leeres Raster zeigen.
+  // Sonst würde renderWoche werfen und der Wochenplan bliebe leer bzw. es
+  // stünde noch der Inhalt der zuvor gezeigten Ansicht da.
+  const spGrid=(plan&&(plan[ab]||plan.A))||{};
 
   const sjOpts=['2025/26','2026/27','2027/28'].map(s=>'<option value="'+s+'" '+(curSJ()===s?'selected':'')+'>'+s+'</option>').join('');
   ta.innerHTML=`
