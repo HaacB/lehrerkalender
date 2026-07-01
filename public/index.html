@@ -286,7 +286,7 @@ function lkReloadState(){
   S.lessons=ld('lp_lessons',{});
   S.klassen=ld('lp_klassen',S.klassen);
   S.hjEntries=ld('lp_hj',{});
-  S.stundenplaene=ld('lp_sp',buildDefaultPlans(4));
+  S.stundenplaene=loadPlans();
   S.weekConfig=ld('lp_wkcfg',{});
   S.kbData=ld('lp_kb',{});
   S.lessonLinks=ld('lp_links',{});
@@ -394,11 +394,21 @@ const S={
     {id:'k3',name:'11c VW-U',fach:'English',schueler:[{id:'s9',name:'Hoffmann, Ida'},{id:'s10',name:'Schulz, Jan'},{id:'s11',name:'Zimmermann, Kira'}]}
   ]),
   hjEntries:ld('lp_hj',{}),
-  stundenplaene:ld('lp_sp', buildDefaultPlans(4)),
+  stundenplaene:loadPlans(),
   weekConfig:ld('lp_wkcfg',{}),
   kbData:ld('lp_kb',{}),
   lessonLinks:ld('lp_links',{})
 };
+
+// Lädt die Stundenpläne und heilt einen kaputten Leer-Zustand (z. B. lp_sp=[])
+// selbst: es müssen immer mindestens 1 Plan existieren. 0 Pläne würden Wochen-
+// UND Stundenplan zum Absturz bringen und lassen sich über die Oberfläche gar
+// nicht herstellen (der letzte Plan ist nicht löschbar) — ein leerer Stand ist
+// also immer ein Datenfehler und wird hier auf die Standardpläne zurückgesetzt.
+function loadPlans(){
+  const sp=ld('lp_sp',null);
+  return (Array.isArray(sp)&&sp.length)?sp:buildDefaultPlans(4);
+}
 
 function buildDefaultPlans(n){
   return Array.from({length:n},(_,i)=>({
@@ -863,6 +873,11 @@ function confirmDelKbDate(date){
 function renderStundenplan(c,ta){
   ta.innerHTML=`<button class="btn pri" onclick="addPlan()"><i class="ti ti-plus" aria-hidden="true"></i>Plan hinzufügen</button>`;
   const plan=S.stundenplaene[S.spPlan]||S.stundenplaene[0];
+  // Sicherheitsnetz: ohne Plan nicht abstuerzen, sondern zum Anlegen auffordern.
+  if(!plan){
+    c.innerHTML='<div class="card" style="max-width:520px"><p style="color:var(--tx2);margin-bottom:10px">Noch kein Stundenplan vorhanden.</p><button class="btn pri" onclick="addPlan()"><i class="ti ti-plus" aria-hidden="true"></i>Plan hinzuf&uuml;gen</button></div>';
+    return;
+  }
   const grid=plan[S.spAB]||plan.A;
 
   let ptabs=S.stundenplaene.map((p,i)=>`<button class="ptab ${i===S.spPlan?'active':''}" onclick="setSPplan(${i})">${esc(p.name)}</button>`).join('');
