@@ -6,6 +6,7 @@ const session = require('express-session');
 const helmet = require('helmet');
 
 const { config, validate } = require('./config');
+const { createSessionStore } = require('./sessionStore');
 const { loginHandler, logoutHandler, requireAuth } = require('./auth');
 const stateRoutes = require('./routes/state');
 const { init: initDb, closeAll } = require('./db/userDb');
@@ -50,6 +51,8 @@ app.use(express.urlencoded({ extended: false }));
 app.use(
   session({
     name: 'lk.sid',
+    // Persistenter Store: Logins überstehen Passenger-Neustarts/Worker-Recycling.
+    store: createSessionStore(session),
     secret: config.sessionSecret,
     resave: false,
     saveUninitialized: false,

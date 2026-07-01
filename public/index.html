@@ -267,6 +267,7 @@ function lkReloadState(){
       var prev=localStorage.getItem('lk_user');
       if(prev&&prev!==me.username){Object.keys(localStorage).filter(__lkAppKey).forEach(function(k){localStorage.removeItem(k);});}
       localStorage.setItem('lk_user',me.username);
+      localStorage.setItem('lk_name',me.name||''); // LDAP-Anzeigename (leer im dev-Modus)
       return fetch('/api/state',{credentials:'same-origin'});
     })
     .then(function(r){return (r&&r.ok)?r.json():null;})
@@ -290,6 +291,7 @@ function lkLogout(){
       // lokalen Cache leeren, damit der nächste Login sauber startet
       Object.keys(localStorage).filter(__lkAppKey).forEach(function(k){localStorage.removeItem(k);});
       localStorage.removeItem('lk_user');
+      localStorage.removeItem('lk_name');
       window.location.replace('login.html');
     });
 }
@@ -905,7 +907,7 @@ function renderEinstellungen(c){
       <div class="field"><label>Schule</label><input type="text" id="p-s" value="${esc(localStorage.getItem('pref_schule')||'BBZ RD-ECK')}"></div>
       <div class="field"><label>Fächer</label><input type="text" id="p-f" value="${esc(localStorage.getItem('pref_faecher')||'')}"></div>
       <button class="btn pri" onclick="savePrefs()"><i class="ti ti-check" aria-hidden="true"></i>Speichern</button>
-      <div class="srow" style="margin-top:12px"><span id="lk-userlbl" style="color:var(--tx2);font-size:12px">Angemeldet als <b>${esc(localStorage.getItem('lk_user')||'?')}</b></span><button class="btn" onclick="lkLogout()"><i class="ti ti-logout" aria-hidden="true"></i>Abmelden</button></div>
+      <div class="srow" style="margin-top:12px"><span id="lk-userlbl" style="color:var(--tx2);font-size:12px">Angemeldet als <b>${esc(localStorage.getItem('lk_name')||localStorage.getItem('lk_user')||'?')}</b></span><button class="btn" onclick="lkLogout()"><i class="ti ti-logout" aria-hidden="true"></i>Abmelden</button></div>
     </div>
     <div class="card" style="margin-top:14px"><div class="ctit"><i class="ti ti-database" aria-hidden="true"></i>Daten</div>
       <div class="srow"><span>Gespeicherte Stunden</span><span style="font-weight:600">${Object.keys(S.lessons).length}</span></div>
