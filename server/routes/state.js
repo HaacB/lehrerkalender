@@ -18,7 +18,8 @@ function currentUser(req) {
 
 // GET /api/me -> wer bin ich
 router.get('/me', (req, res) => {
-  res.json({ username: currentUser(req) });
+  const user = req.session.user;
+  res.json({ username: user.username, name: user.name });
 });
 
 // GET /api/state -> alle kv-Paare als { key: jsonString }

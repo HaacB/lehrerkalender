@@ -9,7 +9,18 @@ const { normalizeUsername } = require('../db/keys');
 async function verifyCredentials(username, password) {
   if (config.authMode === 'ldap') {
     const ldap = require('./ldap');
-    return ldap.authenticate(username, password);
+    // ldap.authenticate liefert bei Erfolg { loginSub, name? }, bei falschen
+    // Anmeldedaten null und wirft bei technischen Fehlern (status=502).
+    const result = await ldap.authenticate(username, password);
+    if (!result) {
+      const e = new Error('Benutzername oder Passwort falsch');
+      e.status = 401;
+      throw e;
+    }
+    // Die stabile Verzeichnis-Kennung (loginSub) ist die Identität: Aus ihr
+    // werden Dateiname und Schlüssel der Nutzer-DB abgeleitet. Normalisieren
+    // hält sie unabhängig von der Schreibweise bei der Eingabe stabil.
+    return { username: normalizeUsername(result.loginSub), name: result.name };
   }
 
   // dev-Modus: kein echter Passwort-Check. Optional per Allowlist eingrenzen.
@@ -30,8 +41,9 @@ async function loginHandler(req, res) {
   }
   try {
     const user = await verifyCredentials(username, password || '');
-    req.session.user = { username: user.username };
-    return res.json({ username: user.username });
+    // Anzeigename (falls vom Verzeichnis geliefert) für die Oberfläche mitführen.
+    req.session.user = { username: user.username, name: user.name };
+    return res.json({ username: user.username, name: user.name });
   } catch (err) {
     const status = err.status || 401;
     if (status >= 500) console.error('Auth-Fehler:', err.cause || err);
