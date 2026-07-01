@@ -11,7 +11,7 @@
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <link rel="icon" type="image/png" href="icons/icon-192.png">
 <title>Lehrerplaner</title>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
+<link rel="stylesheet" href="vendor/tabler/tabler-icons.min.css">
 <style>
 :root{--bg:#f5f4f0;--sur:#fff;--sur2:#f0efe9;--bor:rgba(0,0,0,.1);--borm:rgba(0,0,0,.18);--tx:#1a1a18;--tx2:#5a5a52;--tx3:#9a9a8e;--ac:#1a5276;--acbg:#e8f0f7;--acbor:#378add;--actx:#0c447c;--gr:#0f6e56;--grbg:#e1f5ee;--am:#854f0b;--ambg:#faeeda;--re:#993c1d;--rebg:#faece7;--rad:10px;--rads:6px}
 @media(prefers-color-scheme:dark){:root{--bg:#1a1a18;--sur:#242420;--sur2:#2e2e2a;--bor:rgba(255,255,255,.1);--borm:rgba(255,255,255,.18);--tx:#f0efe9;--tx2:#a0a095;--tx3:#606058;--ac:#378add;--acbg:#0c1f35;--acbor:#185fa5;--actx:#85b7eb;--gr:#5dcaa5;--grbg:#04342c;--am:#ef9f27;--ambg:#412402;--re:#f0997b;--rebg:#4a1b0c}}
@@ -225,6 +225,76 @@ td.ec.tdc{outline:1.5px solid var(--acbor);outline-offset:-1px}
 <div class="toast" id="toast"></div>
 
 <script>
+/* ===== Lehrerkalender: Serveranbindung =====
+   localStorage dient nur noch als synchroner Offline-Cache. Quelle der Wahrheit
+   ist die verschlüsselte Pro-Nutzer-DB auf dem Server (/api/state). */
+var __lkSync={pending:{},timer:null,online:false};
+function __lkAppKey(k){return /^(lp_|pref_|ms_)/.test(k);}
+// Schreibt einen (bereits als String serialisierten) Wert debounced an den Server.
+function lkPush(k,v){__lkSync.pending[k]=v;if(!__lkSync.timer)__lkSync.timer=setTimeout(lkFlush,600);}
+function lkFlush(){
+  __lkSync.timer=null;
+  var payload=__lkSync.pending;__lkSync.pending={};
+  if(!Object.keys(payload).length)return;
+  fetch('/api/state',{method:'PUT',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify(payload)})
+    .then(function(r){if(!r.ok)throw new Error('save');})
+    .catch(function(){ // fehlgeschlagen -> zurück in die Queue (best effort)
+      Object.keys(payload).forEach(function(k){if(!(k in __lkSync.pending))__lkSync.pending[k]=payload[k];});
+      if(!__lkSync.timer)__lkSync.timer=setTimeout(lkFlush,3000);
+    });
+}
+// S aus dem (frisch vom Server befüllten) Cache neu laden.
+function lkReloadState(){
+  S.schuljahr=ld('lp_sj','2025/26');
+  S.lessons=ld('lp_lessons',{});
+  S.klassen=ld('lp_klassen',S.klassen);
+  S.hjEntries=ld('lp_hj',{});
+  S.stundenplaene=ld('lp_sp',buildDefaultPlans(4));
+  S.weekConfig=ld('lp_wkcfg',{});
+  S.kbData=ld('lp_kb',{});
+  S.lessonLinks=ld('lp_links',{});
+}
+(function lkBootstrap(){
+  fetch('/api/me',{credentials:'same-origin'})
+    .then(function(r){
+      if(r.status===401){window.location.replace('login.html');return null;}
+      if(!r.ok)throw new Error('me');
+      return r.json();
+    })
+    .then(function(me){
+      if(!me)return null;
+      // Nutzerwechsel im selben Browser -> lokalen Cache leeren (kein Fremd-Datenblick)
+      var prev=localStorage.getItem('lk_user');
+      if(prev&&prev!==me.username){Object.keys(localStorage).filter(__lkAppKey).forEach(function(k){localStorage.removeItem(k);});}
+      localStorage.setItem('lk_user',me.username);
+      return fetch('/api/state',{credentials:'same-origin'});
+    })
+    .then(function(r){return (r&&r.ok)?r.json():null;})
+    .then(function(data){
+      if(!data)return;
+      // Server = Quelle der Wahrheit: alte App-Keys entfernen, Serverstand einspielen.
+      Object.keys(localStorage).filter(__lkAppKey).forEach(function(k){localStorage.removeItem(k);});
+      Object.keys(data).forEach(function(k){try{localStorage.setItem(k,data[k]);}catch(e){}});
+      __lkSync.online=true;
+      if(typeof lkReloadState==='function')lkReloadState();
+      if(typeof render==='function')render();
+      var ps=localStorage.getItem('pref_schule'),el=document.getElementById('school-lbl');if(ps&&el)el.textContent=ps;
+    })
+    .catch(function(){/* offline: vorhandener Cache-Stand bleibt nutzbar (read-only) */});
+})();
+function lkLogout(){
+  lkFlush(); // letzte Änderungen sichern
+  fetch('/auth/logout',{method:'POST',credentials:'same-origin'})
+    .catch(function(){})
+    .then(function(){
+      // lokalen Cache leeren, damit der nächste Login sauber startet
+      Object.keys(localStorage).filter(__lkAppKey).forEach(function(k){localStorage.removeItem(k);});
+      localStorage.removeItem('lk_user');
+      window.location.replace('login.html');
+    });
+}
+window.addEventListener('beforeunload',function(){if(__lkSync.timer){__lkSync.timer=null;lkFlush();}});
+
 const DAYS=['Mo','Di','Mi','Do','Fr'];
 const DAYS_FULL=['Montag','Dienstag','Mittwoch','Donnerstag','Freitag'];
 const HOURS=['7:45','8:30','9:30','10:15','11:20','12:05','13:05','13:50','14:45','15:30'];
@@ -237,7 +307,7 @@ function defaultFerien(sj){
   return map[sj]||map['2025/26'];
 }
 function getFerien(sj){var v=localStorage.getItem('lp_ferien_'+sj);return v?JSON.parse(v):defaultFerien(sj);}
-function saveFerien(sj,arr){localStorage.setItem('lp_ferien_'+sj,JSON.stringify(arr));}
+function saveFerien(sj,arr){const s=JSON.stringify(arr);localStorage.setItem('lp_ferien_'+sj,s);lkPush('lp_ferien_'+sj,s);}
 function ostern(y){var a=y%19,b=Math.floor(y/100),c=y%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451),mo=Math.floor((h+l-7*m+114)/31),dy=((h+l-7*m+114)%31)+1;return new Date(y,mo-1,dy);}
 function addD(dt,n){var r=new Date(dt);r.setDate(r.getDate()+n);return r;}
 function fmtD(dt){return dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');}
@@ -248,7 +318,7 @@ const KB_CYCLE={leer:'gruen',gruen:'gelb',gelb:'orange',orange:'rot',rot:'leer'}
 const KB_BG={leer:'transparent',gruen:'#EAF3DE',gelb:'#FAEEDA',orange:'#FAECE7',rot:'#FCEBEB'};
 
 function ld(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch{return d}}
-function sv(k,v){localStorage.setItem(k,JSON.stringify(v))}
+function sv(k,v){const s=JSON.stringify(v);localStorage.setItem(k,s);lkPush(k,s)}
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
 function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2200)}
 function todayStr(){const t=new Date();return t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0')}
@@ -835,6 +905,7 @@ function renderEinstellungen(c){
       <div class="field"><label>Schule</label><input type="text" id="p-s" value="${esc(localStorage.getItem('pref_schule')||'BBZ RD-ECK')}"></div>
       <div class="field"><label>Fächer</label><input type="text" id="p-f" value="${esc(localStorage.getItem('pref_faecher')||'')}"></div>
       <button class="btn pri" onclick="savePrefs()"><i class="ti ti-check" aria-hidden="true"></i>Speichern</button>
+      <div class="srow" style="margin-top:12px"><span id="lk-userlbl" style="color:var(--tx2);font-size:12px">Angemeldet als <b>${esc(localStorage.getItem('lk_user')||'?')}</b></span><button class="btn" onclick="lkLogout()"><i class="ti ti-logout" aria-hidden="true"></i>Abmelden</button></div>
     </div>
     <div class="card" style="margin-top:14px"><div class="ctit"><i class="ti ti-database" aria-hidden="true"></i>Daten</div>
       <div class="srow"><span>Gespeicherte Stunden</span><span style="font-weight:600">${Object.keys(S.lessons).length}</span></div>
@@ -1045,14 +1116,14 @@ function processCSV(text){
   let nk=0,tot=0;
   Object.entries(bk).forEach(([kn,sus])=>{let k=S.klassen.find(x=>x.name===kn);if(!k){k={id:'k'+Date.now(),name:kn,fach:'',schueler:[]};S.klassen.push(k);nk++}k.schueler=[...k.schueler,...sus];tot+=sus.length});
   saveAll();toast(`${tot} SuS importiert, ${nk} neue Klasse(n)`);showView('klassen')}
-function connectOutlook(){const cid=document.getElementById('ms-cid')?.value.trim()||'';const tid=document.getElementById('ms-tid')?.value.trim()||'common';if(!cid){alert('Client-ID fehlt');return}localStorage.setItem('ms_cid',cid);localStorage.setItem('ms_tid',tid);const sc=encodeURIComponent('https://graph.microsoft.com/Calendars.Read');const rd=encodeURIComponent(window.location.href.split('?')[0]);window.open(`https://login.microsoftonline.com/${tid}/oauth2/v2.0/authorize?client_id=${cid}&response_type=token&redirect_uri=${rd}&scope=${sc}&response_mode=fragment`,'_blank','width=520,height=620')}
-function savePrefs(){localStorage.setItem('pref_name',document.getElementById('p-n')?.value||'');localStorage.setItem('pref_schule',document.getElementById('p-s')?.value||'BBZ RD-ECK');localStorage.setItem('pref_faecher',document.getElementById('p-f')?.value||'');const s=localStorage.getItem('pref_schule');if(s)document.getElementById('school-lbl').textContent=s;toast('Gespeichert')}
+function connectOutlook(){const cid=document.getElementById('ms-cid')?.value.trim()||'';const tid=document.getElementById('ms-tid')?.value.trim()||'common';if(!cid){alert('Client-ID fehlt');return}localStorage.setItem('ms_cid',cid);lkPush('ms_cid',cid);localStorage.setItem('ms_tid',tid);lkPush('ms_tid',tid);const sc=encodeURIComponent('https://graph.microsoft.com/Calendars.Read');const rd=encodeURIComponent(window.location.href.split('?')[0]);window.open(`https://login.microsoftonline.com/${tid}/oauth2/v2.0/authorize?client_id=${cid}&response_type=token&redirect_uri=${rd}&scope=${sc}&response_mode=fragment`,'_blank','width=520,height=620')}
+function savePrefs(){const pn=document.getElementById('p-n')?.value||'',pss=document.getElementById('p-s')?.value||'BBZ RD-ECK',pf=document.getElementById('p-f')?.value||'';localStorage.setItem('pref_name',pn);lkPush('pref_name',pn);localStorage.setItem('pref_schule',pss);lkPush('pref_schule',pss);localStorage.setItem('pref_faecher',pf);lkPush('pref_faecher',pf);if(pss)document.getElementById('school-lbl').textContent=pss;toast('Gespeichert')}
 function exportData(){const d={lessons:S.lessons,klassen:S.klassen,hjEntries:S.hjEntries,stundenplaene:S.stundenplaene,weekConfig:S.weekConfig,kbData:S.kbData,lessonLinks:S.lessonLinks,exported:new Date().toISOString()};const b=new Blob([JSON.stringify(d,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=`lehrerplaner-${new Date().toISOString().split('T')[0]}.json`;a.click();toast('Export gestartet')}
 function loadJSON(i){const f=i.files[0];if(!f)return;const r=new FileReader();r.onload=e=>{try{const d=JSON.parse(e.target.result);if(d.lessons)S.lessons=d.lessons;if(d.klassen)S.klassen=d.klassen;if(d.hjEntries)S.hjEntries=d.hjEntries;if(d.stundenplaene)S.stundenplaene=d.stundenplaene;if(d.weekConfig)S.weekConfig=d.weekConfig;if(d.kbData)S.kbData=d.kbData;if(d.lessonLinks)S.lessonLinks=d.lessonLinks;saveAll();toast('Wiederhergestellt');render()}catch{alert('Fehler beim Lesen.')}};r.readAsText(f)}
 function clearAll(){if(!confirm('Wirklich alle Daten löschen?'))return;S.lessons={};S.hjEntries={};S.kbData={};saveAll();toast('Gelöscht');render()}
 
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
-if(window.location.hash?.includes('access_token')){const p=new URLSearchParams(window.location.hash.slice(1));const tk=p.get('access_token');if(tk){localStorage.setItem('ms_token',tk);window.location.hash='';toast('Outlook verbunden')}}
+if(window.location.hash?.includes('access_token')){const p=new URLSearchParams(window.location.hash.slice(1));const tk=p.get('access_token');if(tk){localStorage.setItem('ms_token',tk);lkPush('ms_token',tk);window.location.hash='';toast('Outlook verbunden')}}
 
 const ps=localStorage.getItem('pref_schule');
 if(ps)document.getElementById('school-lbl').textContent=ps;

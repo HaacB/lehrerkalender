@@ -1,0 +1,23 @@
+{
+  "name": "lehrerkalender",
+  "version": "1.0.0",
+  "description": "Serverbasierter Lehrerkalender (BBZ RD-ECK) mit verschlüsselter Pro-Nutzer-SQLite",
+  "type": "commonjs",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node server/index.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "express-session": "^1.18.1",
+    "helmet": "^8.0.0",
+    "ldapjs": "^3.0.7",
+    "sql.js": "^1.12.0"
+  },
+  "license": "MIT"
+}

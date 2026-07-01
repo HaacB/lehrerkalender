@@ -1,0 +1,18 @@
+# Dependencies
+node_modules/
+
+# Umgebungs-/Geheimnisse – NIE committen
+.env
+.env.local
+
+# Nutzerdaten (verschlüsselte Pro-Nutzer-SQLite-Dateien)
+data/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Logs / OS
+*.log
+.DS_Store
+Thumbs.db

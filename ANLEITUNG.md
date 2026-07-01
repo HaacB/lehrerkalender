@@ -9,6 +9,23 @@ Nächster Schritt: Integration in die bbz-cloud gemeinsam mit dClausen.
 
 ---
 
+## Update: serverbasierte Version umgesetzt (Phase 1)
+
+Die App ist inzwischen von der reinen localStorage-PWA zu einer **serverbasierten Web-App**
+ausgebaut. Ein zentraler **Node.js-Server** liefert die Oberfläche an jeden Browser (mobil +
+Windows/mac/linux) aus und speichert die Daten **pro Nutzer in einer eigenen, AES-256-GCM-
+verschlüsselten SQLite-Datenbank** (Dateiname aus dem Benutzernamen abgeleitet). `localStorage`
+ist nur noch Offline-Lesecache.
+
+- **Auth austauschbar:** Test-Login (`AUTH_MODE=dev`) läuft; **LDAP** ist vorbereitet
+  (`AUTH_MODE=ldap`, Konfiguration per `.env`) und wird scharfgeschaltet, sobald der
+  LDAP-Endpoint bereitsteht.
+- **Offen (spätere Phase):** Synchronisierung der verschlüsselten DB-Dateien über Nextcloud.
+
+Setup, Architektur und API sind in **[README.md](README.md)** dokumentiert.
+
+---
+
 ## Aktueller Funktionsumfang (Stand: lokale PWA)
 
 | Modul | Funktion |

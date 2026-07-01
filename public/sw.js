@@ -1,17 +1,18 @@
-const CACHE = 'lehrerplaner-v1';
+const CACHE = 'lehrerkalender-v2';
 const ASSETS = [
+  '/',
   '/index.html',
+  '/login.html',
   '/manifest.json',
   '/icons/icon-192.png',
   '/icons/icon-512.png',
-  'https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css',
-  'https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/fonts/tabler-icons.woff2'
+  '/vendor/tabler/tabler-icons.min.css',
+  '/vendor/tabler/fonts/tabler-icons.woff2'
 ];
 
 self.addEventListener('install', e => {
   e.waitUntil(
-    caches.open(CACHE).then(c => c.addAll(ASSETS.map(u => new Request(u, {mode:'no-cors'}))))
-      .then(() => self.skipWaiting())
+    caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting())
   );
 });
 
@@ -24,11 +25,18 @@ self.addEventListener('activate', e => {
 });
 
 self.addEventListener('fetch', e => {
+  const url = new URL(e.request.url);
+  // Nur eigene GET-Requests behandeln.
+  if (e.request.method !== 'GET' || url.origin !== self.location.origin) return;
+  // Dynamische/Auth-Endpunkte NIE aus dem Cache bedienen (immer frische Serverdaten).
+  if (url.pathname.startsWith('/api') || url.pathname.startsWith('/auth')) return;
+
+  // Statische Assets: Cache-first mit Netz-Fallback (Offline-Fähigkeit der PWA).
   e.respondWith(
     caches.match(e.request).then(cached => {
       if (cached) return cached;
       return fetch(e.request).then(resp => {
-        if (resp && resp.status === 200) {
+        if (resp && resp.status === 200 && resp.type === 'basic') {
           const clone = resp.clone();
           caches.open(CACHE).then(c => c.put(e.request, clone));
         }
