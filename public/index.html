@@ -33,6 +33,8 @@
 :root[data-theme="dark"] .colbtn.c-gelb{color:var(--am)}
 :root[data-theme="dark"] .colbtn.c-orange{color:#f0997b}
 :root[data-theme="dark"] .colbtn.c-rot{color:var(--re)}
+:root[data-theme="dark"] .colbtn.c-abwesend{color:#a0a095}
+:root[data-theme="dark"] .colbtn.c-unentschuldigt{color:#f0997b}
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--tx);font-size:14px;overscroll-behavior:none}
 .app{display:flex;height:100dvh;overflow:hidden}
@@ -161,10 +163,12 @@ td.ec.tdc{outline:1.5px solid var(--acbor);outline-offset:-1px}
 .kbdot.gelb{background:#FAEEDA;color:#633806}
 .kbdot.orange{background:#FAECE7;color:#712B13}
 .kbdot.rot{background:#FCEBEB;color:#791F1F}
+.kbdot.abwesend{background:#A8A79D;color:#2e2e2a}
+.kbdot.unentschuldigt{background:#8B1A1A;color:#fff}
 .note-ind{position:absolute;top:3px;right:3px;width:5px;height:5px;border-radius:50%;background:var(--acbor)}
 .trend-bar{display:flex;gap:2px;justify-content:center}
 .tb{width:8px;height:8px;border-radius:2px}
-.tb.gruen{background:#639922}.tb.gelb{background:#EF9F27}.tb.orange{background:#D85A30}.tb.rot{background:#E24B4A}.tb.leer{background:var(--bor)}
+.tb.gruen{background:#639922}.tb.gelb{background:#EF9F27}.tb.orange{background:#D85A30}.tb.rot{background:#E24B4A}.tb.leer{background:var(--bor)}.tb.abwesend{background:#8C8B80}.tb.unentschuldigt{background:#8B1A1A}
 .kl-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
 .kltab{padding:6px 14px;border-radius:20px;border:.5px solid var(--borm);background:transparent;cursor:pointer;font-size:12px;color:var(--tx2);font-family:inherit;transition:all .12s}
 .kltab.active{background:var(--acbg);border-color:var(--acbor);color:var(--actx);font-weight:500}
@@ -194,8 +198,8 @@ td.ec.tdc{outline:1.5px solid var(--acbor);outline-offset:-1px}
 .tchip{padding:5px 12px;border-radius:20px;font-size:12px;cursor:pointer;border:.5px solid var(--borm);color:var(--tx2);background:transparent;font-family:inherit;transition:all .12s}
 .tchip:hover{background:var(--sur2)}
 .tchip.active{border-color:var(--acbor);background:var(--acbg);color:var(--actx);font-weight:500}
-.colrow{display:flex;gap:7px;margin-bottom:14px}
-.colbtn{flex:1;padding:7px 4px;border-radius:8px;border:1.5px solid transparent;cursor:pointer;font-size:11px;font-weight:500;display:flex;flex-direction:column;align-items:center;gap:4px;background:transparent;font-family:inherit;transition:border-color .12s}
+.colrow{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:14px}
+.colbtn{flex:1 1 52px;padding:7px 4px;border-radius:8px;border:1.5px solid transparent;cursor:pointer;font-size:11px;font-weight:500;display:flex;flex-direction:column;align-items:center;gap:4px;background:transparent;font-family:inherit;transition:border-color .12s}
 .colbtn .cb-dot{width:20px;height:20px;border-radius:50%}
 .colbtn.active{border-color:var(--borm)}
 .colbtn.c-leer .cb-dot{background:var(--sur2);border:.5px solid var(--borm)}.colbtn.c-leer{color:var(--tx3)}
@@ -203,6 +207,8 @@ td.ec.tdc{outline:1.5px solid var(--acbor);outline-offset:-1px}
 .colbtn.c-gelb .cb-dot{background:#EF9F27}.colbtn.c-gelb{color:#633806}
 .colbtn.c-orange .cb-dot{background:#D85A30}.colbtn.c-orange{color:#712B13}
 .colbtn.c-rot .cb-dot{background:#E24B4A}.colbtn.c-rot{color:#791F1F}
+.colbtn.c-abwesend .cb-dot{background:#8C8B80}.colbtn.c-abwesend{color:#4A4A44}
+.colbtn.c-unentschuldigt .cb-dot{background:#8B1A1A}.colbtn.c-unentschuldigt{color:#5f1212}
 .mfoot{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
 /* MISC */
 .srow{display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:.5px solid var(--bor);font-size:13px}
@@ -346,10 +352,13 @@ function ostern(y){var a=y%19,b=Math.floor(y/100),c=y%100,d=Math.floor(b/4),e=b%
 function addD(dt,n){var r=new Date(dt);r.setDate(r.getDate()+n);return r;}
 function fmtD(dt){return dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');}
 function getSHFeiertage(y){var o=ostern(y);var r={};r[fmtD(new Date(y,0,1))]='Neujahr';r[fmtD(addD(o,-2))]='Karfreitag';r[fmtD(o)]='Ostersonntag';r[fmtD(addD(o,1))]='Ostermontag';r[fmtD(new Date(y,4,1))]='Tag der Arbeit';r[fmtD(addD(o,39))]='Christi Himmelfahrt';r[fmtD(addD(o,49))]='Pfingstsonntag';r[fmtD(addD(o,50))]='Pfingstmontag';r[fmtD(new Date(y,9,3))]='Tag d. Dt. Einheit';r[fmtD(new Date(y,9,31))]='Reformationstag';r[fmtD(new Date(y,11,25))]='1. Weihnachtstag';r[fmtD(new Date(y,11,26))]='2. Weihnachtstag';return r;}
-const KB_COLORS=['leer','gruen','gelb','orange','rot'];
-const KB_LABELS={leer:'—',gruen:'Aktiv',gelb:'Gut',orange:'Wenig',rot:'Nicht'};
-const KB_CYCLE={leer:'gruen',gruen:'gelb',gelb:'orange',orange:'rot',rot:'leer'};
-const KB_BG={leer:'transparent',gruen:'#EAF3DE',gelb:'#FAEEDA',orange:'#FAECE7',rot:'#FCEBEB'};
+const KB_COLORS=['leer','gruen','gelb','orange','rot','abwesend','unentschuldigt'];
+const KB_LABELS={leer:'—',gruen:'Aktiv',gelb:'Gut',orange:'Wenig',rot:'Nicht',abwesend:'Abw.',unentschuldigt:'Unent.'};
+// Volltext für Tooltips im Auswahl-Dialog (die Kurzlabels oben sind knapp).
+const KB_TITLE={leer:'Kein Eintrag',gruen:'Aktiv',gelb:'Gut',orange:'Wenig',rot:'Nicht',abwesend:'Abwesend (entschuldigt)',unentschuldigt:'Unentschuldigt abwesend'};
+// Linksklick auf eine Zelle schaltet in dieser Reihenfolge weiter (inkl. Abwesenheit am Ende).
+const KB_CYCLE={leer:'gruen',gruen:'gelb',gelb:'orange',orange:'rot',rot:'abwesend',abwesend:'unentschuldigt',unentschuldigt:'leer'};
+const KB_BG={leer:'transparent',gruen:'#EAF3DE',gelb:'#FAEEDA',orange:'#FAECE7',rot:'#FCEBEB',abwesend:'#EAE9E3',unentschuldigt:'#F0D2CE'};
 
 function ld(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch{return d}}
 function sv(k,v){const s=JSON.stringify(v);localStorage.setItem(k,s);lkPush(k,s)}
@@ -764,6 +773,8 @@ function renderKlassen(c,ta){
       <span class="kll"><span style="width:11px;height:11px;border-radius:50%;background:#EF9F27;display:inline-block"></span>Gut</span>
       <span class="kll"><span style="width:11px;height:11px;border-radius:50%;background:#D85A30;display:inline-block"></span>Wenig</span>
       <span class="kll"><span style="width:11px;height:11px;border-radius:50%;background:#E24B4A;display:inline-block"></span>Nicht aktiv</span>
+      <span class="kll"><span style="width:11px;height:11px;border-radius:50%;background:#8C8B80;display:inline-block"></span>Abwesend</span>
+      <span class="kll"><span style="width:11px;height:11px;border-radius:50%;background:#8B1A1A;display:inline-block"></span>Unentschuldigt</span>
       <span class="kll"><span style="width:5px;height:5px;border-radius:50%;background:var(--acbor);display:inline-block"></span>Notiz</span>
       <span class="kll" style="color:var(--tx3);font-size:10px">Klick = Farbe · Rechtsklick = Notiz</span>
       <span class="kll" style="margin-left:auto;color:var(--tx3);font-size:10px">Klick = Farbe · Rechtsklick = Notiz</span>
@@ -1039,7 +1050,7 @@ function renderModal(){
     const e=kbGet(S.selKlasse,sid,date);
     const[y,mo,d]=date.split('-');
     const dlbl=`${parseInt(d)}. ${MONTHS[parseInt(mo)-1]} ${y}`;
-    const chips=KB_COLORS.map(c=>`<button class="colbtn c-${c} ${(e.color||'leer')===c?'active':''}" onclick="selKbColor('${c}')"><div class="cb-dot"></div><span>${KB_LABELS[c]}</span></button>`).join('');
+    const chips=KB_COLORS.map(c=>`<button class="colbtn c-${c} ${(e.color||'leer')===c?'active':''}" title="${KB_TITLE[c]}" onclick="selKbColor('${c}')"><div class="cb-dot"></div><span>${KB_LABELS[c]}</span></button>`).join('');
     html=`<div class="modal"><div class="mhd"><div class="mtit">${esc(s?.name||'')} · ${dlbl}</div><button class="btn ico" onclick="closeModal()"><i class="ti ti-x"></i></button></div>
       <div class="colrow">${chips}</div>
       <div class="field"><label>Anmerkung (für Gespräche / Ausdruck)</label>
