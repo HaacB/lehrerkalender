@@ -7,6 +7,8 @@
   "scripts": {
     "start": "node server/index.js",
     "dev": "node server/index.js",
+    "test": "node --test \"test/**/*.test.js\"",
+    "build": "node -e \"console.log('Kein Build-Schritt nötig (statische PWA + Node-Server).')\"",
     "ldap-test": "node server/cli/ldap-test.js"
   },
   "engines": {

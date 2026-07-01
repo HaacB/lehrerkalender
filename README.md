@@ -108,10 +108,22 @@ data/              verschlüsselte Pro-Nutzer-DBs  (nicht im Repo)
   setzen und die `.env` befüllen, sobald der LDAP-Endpoint bereitsteht.
 - **Phase C:** Synchronisierung der verschlüsselten DB-Dateien über Nextcloud (WebDAV).
 
+## Tests
+
+```bash
+npm test          # Node-eigener Test-Runner (node --test), keine Zusatzpakete
+```
+
+Abgedeckt sind Datei-/Schlüsselableitung (`keys`), das RFC-4515-Filter-Escaping,
+der Auth-Fluss (dev + ldap, LDAP gestubbt) sowie die Konfigurations-Validierung.
+
 ## Produktion
 
 HTTPS via Reverse-Proxy, `SECURE_COOKIES=true`, persistenter Session-Store,
 Backups des `data/`-Verzeichnisses **und** des `MASTER_KEY`.
+
+Ausführliche Anleitung für den Plesk-Server (Node.js/Passenger, Umgebungs­variablen,
+Dokumentenstamm, Deploy nach `git pull`): **[docs/DEPLOYMENT-PLESK.md](docs/DEPLOYMENT-PLESK.md)**.
 
 ## Lizenz
 
