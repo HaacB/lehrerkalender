@@ -11,10 +11,28 @@
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <link rel="icon" type="image/png" href="icons/icon-192.png">
 <title>Lehrerplaner</title>
+<script>
+/* Theme sofort setzen (vor dem ersten Paint) -> kein Aufblitzen (FOUC).
+   pref_theme wird per JSON gespeichert; 'system' bzw. fehlend -> OS-Einstellung. */
+(function(){try{var t=localStorage.getItem('pref_theme');if(t){try{t=JSON.parse(t);}catch(e){}}if(!t||t==='system'){t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}document.documentElement.dataset.theme=t;}catch(e){}})();
+</script>
 <link rel="stylesheet" href="vendor/tabler/tabler-icons.min.css">
 <style>
 :root{--bg:#f5f4f0;--sur:#fff;--sur2:#f0efe9;--bor:rgba(0,0,0,.1);--borm:rgba(0,0,0,.18);--tx:#1a1a18;--tx2:#5a5a52;--tx3:#9a9a8e;--ac:#1a5276;--acbg:#e8f0f7;--acbor:#378add;--actx:#0c447c;--gr:#0f6e56;--grbg:#e1f5ee;--am:#854f0b;--ambg:#faeeda;--re:#993c1d;--rebg:#faece7;--rad:10px;--rads:6px}
-@media(prefers-color-scheme:dark){:root{--bg:#1a1a18;--sur:#242420;--sur2:#2e2e2a;--bor:rgba(255,255,255,.1);--borm:rgba(255,255,255,.18);--tx:#f0efe9;--tx2:#a0a095;--tx3:#606058;--ac:#378add;--acbg:#0c1f35;--acbor:#185fa5;--actx:#85b7eb;--gr:#5dcaa5;--grbg:#04342c;--am:#ef9f27;--ambg:#412402;--re:#f0997b;--rebg:#4a1b0c}}
+/* Dunkel-Palette: attribut-gesteuert (manuelle Wahl) + Media-Query nur als No-JS-Fallback,
+   solange keine explizite Wahl (data-theme) gesetzt ist. */
+@media(prefers-color-scheme:dark){:root:not([data-theme]){--bg:#1a1a18;--sur:#242420;--sur2:#2e2e2a;--bor:rgba(255,255,255,.1);--borm:rgba(255,255,255,.18);--tx:#f0efe9;--tx2:#a0a095;--tx3:#606058;--ac:#378add;--acbg:#0c1f35;--acbor:#185fa5;--actx:#85b7eb;--gr:#5dcaa5;--grbg:#04342c;--am:#ef9f27;--ambg:#412402;--re:#f0997b;--rebg:#4a1b0c}}
+:root[data-theme="dark"]{--bg:#1a1a18;--sur:#242420;--sur2:#2e2e2a;--bor:rgba(255,255,255,.1);--borm:rgba(255,255,255,.18);--tx:#f0efe9;--tx2:#a0a095;--tx3:#606058;--ac:#378add;--acbg:#0c1f35;--acbor:#185fa5;--actx:#85b7eb;--gr:#5dcaa5;--grbg:#04342c;--am:#ef9f27;--ambg:#412402;--re:#f0997b;--rebg:#4a1b0c}
+/* Dark-Mode-Korrekturen: semantische Farben, die sonst hartkodiert hell blieben.
+   Nutzt die dunklen Paletten-Farben (--grbg/--rebg/--gr/--am/--re) statt neuer Werte. */
+:root[data-theme="dark"] .wg-cell.wk-fer,:root[data-theme="dark"] td.ec.fer{background:var(--grbg)!important}
+:root[data-theme="dark"] .wg-cell.wk-fer:hover,:root[data-theme="dark"] td.ec.fer:hover{background:#0a4a3c!important}
+:root[data-theme="dark"] .wg-cell.wk-fei,:root[data-theme="dark"] td.ec.fei{background:var(--rebg)!important}
+:root[data-theme="dark"] .wg-cell.wk-fei:hover,:root[data-theme="dark"] td.ec.fei:hover{background:#5f2410!important}
+:root[data-theme="dark"] .colbtn.c-gruen{color:var(--gr)}
+:root[data-theme="dark"] .colbtn.c-gelb{color:var(--am)}
+:root[data-theme="dark"] .colbtn.c-orange{color:#f0997b}
+:root[data-theme="dark"] .colbtn.c-rot{color:var(--re)}
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--tx);font-size:14px;overscroll-behavior:none}
 .app{display:flex;height:100dvh;overflow:hidden}
@@ -150,6 +168,16 @@ td.ec.tdc{outline:1.5px solid var(--acbor);outline-offset:-1px}
 .kl-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
 .kltab{padding:6px 14px;border-radius:20px;border:.5px solid var(--borm);background:transparent;cursor:pointer;font-size:12px;color:var(--tx2);font-family:inherit;transition:all .12s}
 .kltab.active{background:var(--acbg);border-color:var(--acbor);color:var(--actx);font-weight:500}
+/* Klassen-Pille: Name + integriertes Bearbeiten-Icon als ein zusammenhängendes Element */
+.klpill{display:inline-flex;align-items:stretch}
+.klpill.has-edit .kltab{border-radius:20px 0 0 20px;border-right-width:0}
+.kltab-edit{border:.5px solid var(--acbor);border-left:.5px solid var(--acbor);border-radius:0 20px 20px 0;background:var(--acbg);color:var(--actx);cursor:pointer;padding:0 12px;display:inline-flex;align-items:center;font-size:13px;font-family:inherit;transition:color .12s}
+.kltab-edit:hover{color:var(--re)}
+/* Segmented-Control (Design-Auswahl in den Einstellungen) */
+.seg{display:inline-flex;border:.5px solid var(--borm);border-radius:var(--rads);overflow:hidden}
+.segbtn{padding:7px 14px;background:transparent;border:none;border-right:.5px solid var(--borm);cursor:pointer;font-size:13px;color:var(--tx2);font-family:inherit;display:inline-flex;align-items:center;gap:6px;transition:background .12s}
+.segbtn:last-child{border-right:none}
+.segbtn.active{background:var(--acbg);color:var(--actx);font-weight:500}
 .kb-legend{display:flex;gap:12px;margin-bottom:10px;flex-wrap:wrap}
 .kll{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--tx2)}
 /* MODAL */
@@ -217,7 +245,10 @@ td.ec.tdc{outline:1.5px solid var(--acbor);outline-offset:-1px}
   <div class="main">
     <div class="topbar">
       <div class="tbtit" id="view-title">Wochenplan</div>
-      <div class="tbact" id="topbar-act"></div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div class="tbact" id="topbar-act"></div>
+        <button class="btn ico" id="theme-toggle" onclick="cycleTheme()" title="Design wechseln"><i class="ti ti-device-desktop"></i></button>
+      </div>
     </div>
     <div class="content" id="content"></div>
   </div>
@@ -279,6 +310,7 @@ function lkReloadState(){
       __lkSync.online=true;
       if(typeof lkReloadState==='function')lkReloadState();
       if(typeof render==='function')render();
+      if(typeof applyTheme==='function')applyTheme(); // ggf. vom Server geladenes pref_theme anwenden
       var ps=localStorage.getItem('pref_schule'),el=document.getElementById('school-lbl');if(ps&&el)el.textContent=ps;
     })
     .catch(function(){/* offline: vorhandener Cache-Stand bleibt nutzbar (read-only) */});
@@ -321,6 +353,24 @@ const KB_BG={leer:'transparent',gruen:'#EAF3DE',gelb:'#FAEEDA',orange:'#FAECE7',
 
 function ld(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch{return d}}
 function sv(k,v){const s=JSON.stringify(v);localStorage.setItem(k,s);lkPush(k,s)}
+/* ===== THEME (System / Hell / Dunkel) ===== */
+const THEME_ORDER=['system','light','dark'];
+const THEME_LABEL={system:'System',light:'Hell',dark:'Dunkel'};
+const THEME_ICON={system:'ti-device-desktop',light:'ti-sun',dark:'ti-moon'};
+function themeMode(){const m=ld('pref_theme','system');return THEME_ORDER.includes(m)?m:'system';}
+function effTheme(m){m=m||themeMode();return m==='system'?(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):m;}
+function applyTheme(){
+  const e=effTheme();
+  document.documentElement.dataset.theme=e;
+  const mc=document.querySelector('meta[name="theme-color"]');
+  if(mc)mc.setAttribute('content',e==='dark'?'#242420':'#1a5276');
+  const b=document.getElementById('theme-toggle');
+  if(b){const m=themeMode();b.innerHTML='<i class="ti '+THEME_ICON[m]+'"></i>';b.title='Design: '+THEME_LABEL[m]+' – klicken zum Wechseln';}
+}
+function setTheme(m){if(!THEME_ORDER.includes(m))m='system';sv('pref_theme',m);applyTheme();if(S.view==='einstellungen')render();}
+function cycleTheme(){const n=THEME_ORDER[(THEME_ORDER.indexOf(themeMode())+1)%THEME_ORDER.length];setTheme(n);toast('Design: '+THEME_LABEL[n]);}
+// Im System-Modus live auf OS-Wechsel reagieren.
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change',function(){if(themeMode()==='system')applyTheme();});
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
 function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2200)}
 function todayStr(){const t=new Date();return t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0')}
@@ -681,9 +731,9 @@ function renderKlassen(c,ta){
   let tabs='<div class="kl-tabs">';
   S.klassen.forEach(k=>{
     const isActive=k.id===S.selKlasse;
-    tabs+='<span style="display:inline-flex;align-items:center;gap:2px;margin-right:4px">';
-    tabs+='<button class="kltab '+(isActive?'active':'')+' " onclick="selKl(\''+k.id+'\')">'+ esc(k.name)+'</button>';
-    tabs+='<button onclick="openEditKlasse(\''+k.id+'\')" title="Umbenennen / Löschen" style="background:transparent;border:none;cursor:pointer;padding:2px 4px;color:var(--tx3);font-size:11px;line-height:1" onmouseover="this.style.color=\'var(--tx)\'" onmouseout="this.style.color=\'var(--tx3)\'"><i class="ti ti-dots-vertical"></i></button>';
+    tabs+='<span class="klpill'+(isActive?' has-edit':'')+'">';
+    tabs+='<button class="kltab '+(isActive?'active':'')+'" onclick="selKl(\''+k.id+'\')">'+ esc(k.name)+'</button>';
+    if(isActive)tabs+='<button class="kltab-edit" onclick="openEditKlasse(\''+k.id+'\')" title="Klasse umbenennen / löschen"><i class="ti ti-pencil"></i></button>';
     tabs+='</span>';
   });
   tabs+='<button class="btn sml" onclick="addKbDateManual()" style="margin-left:4px"><i class="ti ti-calendar-plus" aria-hidden="true"></i>Datum</button></div>';
@@ -909,6 +959,11 @@ function renderEinstellungen(c){
       <button class="btn pri" onclick="savePrefs()"><i class="ti ti-check" aria-hidden="true"></i>Speichern</button>
       <div class="srow" style="margin-top:12px"><span id="lk-userlbl" style="color:var(--tx2);font-size:12px">Angemeldet als <b>${esc(localStorage.getItem('lk_name')||localStorage.getItem('lk_user')||'?')}</b></span><button class="btn" onclick="lkLogout()"><i class="ti ti-logout" aria-hidden="true"></i>Abmelden</button></div>
     </div>
+    <div class="card" style="margin-top:14px"><div class="ctit"><i class="ti ti-palette" aria-hidden="true"></i>Darstellung</div>
+      <div class="field"><label>Design</label>
+        <div class="seg">${THEME_ORDER.map(m=>`<button class="segbtn ${themeMode()===m?'active':''}" onclick="setTheme('${m}')"><i class="ti ${THEME_ICON[m]}"></i>${THEME_LABEL[m]}</button>`).join('')}</div>
+      </div>
+    </div>
     <div class="card" style="margin-top:14px"><div class="ctit"><i class="ti ti-database" aria-hidden="true"></i>Daten</div>
       <div class="srow"><span>Gespeicherte Stunden</span><span style="font-weight:600">${Object.keys(S.lessons).length}</span></div>
       <div class="srow"><span>Klassen</span><span style="font-weight:600">${S.klassen.length}</span></div>
@@ -1131,6 +1186,7 @@ const ps=localStorage.getItem('pref_schule');
 if(ps)document.getElementById('school-lbl').textContent=ps;
 (()=>{const now=new Date();if(now.getMonth()===7){const key='lp_aug_'+now.getFullYear();if(!localStorage.getItem(key)){localStorage.setItem(key,'1');setTimeout(()=>{if(confirm('Neues Schuljahr – Klassenlisten aktualisieren?\nAltes Schuljahr zuerst unter Ferien archivieren.')){showView('ferien');}},800);}}})();
 render();
+applyTheme(); // Toggle-Icon + meta[theme-color] initial setzen
 </script>
 </body>
 </html>
