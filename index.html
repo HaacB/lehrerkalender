@@ -1,0 +1,1063 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Lehrerplaner">
+<meta name="theme-color" content="#1a5276">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<title>Lehrerplaner</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
+<style>
+:root{--bg:#f5f4f0;--sur:#fff;--sur2:#f0efe9;--bor:rgba(0,0,0,.1);--borm:rgba(0,0,0,.18);--tx:#1a1a18;--tx2:#5a5a52;--tx3:#9a9a8e;--ac:#1a5276;--acbg:#e8f0f7;--acbor:#378add;--actx:#0c447c;--gr:#0f6e56;--grbg:#e1f5ee;--am:#854f0b;--ambg:#faeeda;--re:#993c1d;--rebg:#faece7;--rad:10px;--rads:6px}
+@media(prefers-color-scheme:dark){:root{--bg:#1a1a18;--sur:#242420;--sur2:#2e2e2a;--bor:rgba(255,255,255,.1);--borm:rgba(255,255,255,.18);--tx:#f0efe9;--tx2:#a0a095;--tx3:#606058;--ac:#378add;--acbg:#0c1f35;--acbor:#185fa5;--actx:#85b7eb;--gr:#5dcaa5;--grbg:#04342c;--am:#ef9f27;--ambg:#412402;--re:#f0997b;--rebg:#4a1b0c}}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--tx);font-size:14px;overscroll-behavior:none}
+.app{display:flex;height:100dvh;overflow:hidden}
+.sidebar{width:210px;min-width:210px;background:var(--sur);border-right:.5px solid var(--bor);display:flex;flex-direction:column;overflow-y:auto}
+.shead{padding:16px;border-bottom:.5px solid var(--bor)}
+.logo{display:flex;align-items:center;gap:10px}
+.logo-ic{width:32px;height:32px;background:var(--ac);border-radius:8px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:18px;flex-shrink:0}
+.logo-tx{font-size:14px;font-weight:600;color:var(--tx)}
+.logo-sub{font-size:11px;color:var(--tx3);margin-top:1px}
+.nsec{padding:12px 16px 3px;font-size:10px;color:var(--tx3);text-transform:uppercase;letter-spacing:.08em;font-weight:600}
+.ni{display:flex;align-items:center;gap:9px;padding:8px 16px;cursor:pointer;color:var(--tx2);font-size:13px;border-left:2px solid transparent;transition:background .12s;user-select:none}
+.ni:hover{background:var(--sur2);color:var(--tx)}
+.ni.active{background:var(--acbg);color:var(--actx);border-left-color:var(--ac);font-weight:500}
+.ni i{font-size:17px;width:20px;text-align:center}
+.nsp{flex:1}
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
+.topbar{background:var(--sur);border-bottom:.5px solid var(--bor);padding:11px 20px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;gap:12px}
+.tbtit{font-size:15px;font-weight:600}
+.tbact{display:flex;align-items:center;gap:8px;flex-shrink:0;flex-wrap:wrap}
+.content{flex:1;overflow-y:auto;padding:20px}
+.btn{background:transparent;border:.5px solid var(--borm);border-radius:var(--rads);padding:6px 12px;cursor:pointer;font-size:13px;color:var(--tx);display:inline-flex;align-items:center;gap:6px;transition:background .12s,transform .08s;font-family:inherit;white-space:nowrap}
+.btn:hover{background:var(--sur2)}
+.btn:active{transform:scale(.97)}
+.btn.pri{background:var(--acbg);border-color:var(--acbor);color:var(--actx);font-weight:500}
+.btn.pri:hover{filter:brightness(.96)}
+.btn.ico{padding:6px 8px}
+.btn.dan{color:var(--re);border-color:var(--rebg)}
+.btn.sml{padding:4px 9px;font-size:12px}
+.card{background:var(--sur);border:.5px solid var(--bor);border-radius:var(--rad);padding:16px 18px;margin-bottom:14px}
+.ctit{font-size:12px;font-weight:600;color:var(--tx2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:14px;display:flex;align-items:center;gap:7px}
+.ctit i{font-size:15px}
+/* WEEK GRID */
+.wkwrap{background:var(--sur);border:.5px solid var(--bor);border-radius:var(--rad);overflow:hidden;margin-bottom:14px}
+.wkgrid{display:grid;grid-template-columns:52px repeat(5,1fr)}
+.wg-cor{background:var(--sur2);border-bottom:.5px solid var(--bor);border-right:.5px solid var(--bor);padding:6px;display:flex;align-items:flex-end;justify-content:flex-end}
+.wg-day{background:var(--sur2);border-bottom:.5px solid var(--bor);border-right:.5px solid var(--bor);padding:5px 5px;text-align:center;min-height:52px;display:flex;flex-direction:column;justify-content:center}
+.wg-day:last-child{border-right:none}
+.wg-day.tod{background:var(--acbg)}
+.wg-dn{font-size:12px;font-weight:600;color:var(--tx2)}
+.wg-day.tod .wg-dn{color:var(--actx)}
+.wg-dd{font-size:10px;color:var(--tx3);margin-top:1px}
+.wg-time{border-right:.5px solid var(--bor);border-bottom:.5px solid var(--bor);padding:4px 5px 0 2px;font-size:10px;color:var(--tx3);text-align:right;min-height:70px;display:flex;align-items:flex-start;justify-content:flex-end;padding-top:5px}
+.wg-cell{border-right:.5px solid var(--bor);border-bottom:.5px solid var(--bor);min-height:70px;padding:3px;position:relative;transition:background .1s}
+.wg-cell:last-child{border-right:none}
+.wg-row:last-child .wg-time,.wg-row:last-child .wg-cell{border-bottom:none}
+.wg-cell:hover{background:var(--sur2)}
+.wg-cell.wk-fer{background:#EAF3DE!important}
+.wg-cell.wk-fer:hover{background:#d8eccc!important}
+.wg-cell.wk-fei{background:#FCEAEA!important}
+.wg-cell.wk-fei:hover{background:#f5d5d5!important}
+.sp-bg{position:absolute;inset:0;padding:3px 5px;pointer-events:none;z-index:0}
+.sp-kl{font-size:10px;font-weight:600;color:var(--tx3);opacity:.7}
+.sp-fa{font-size:9px;color:var(--tx3);opacity:.5}
+.sp-link{position:absolute;bottom:2px;right:3px;font-size:9px;color:var(--acbor);opacity:.7;cursor:pointer;pointer-events:all;z-index:2;text-decoration:none}
+.sp-link:hover{opacity:1}
+.lb-nclink{display:flex;align-items:center;gap:3px;font-size:9px;color:var(--acbor);text-decoration:none;margin-top:2px;opacity:.75}
+.lb-nclink:hover{opacity:1;text-decoration:underline}
+.cell-click{position:absolute;inset:0;z-index:1;cursor:pointer}
+.lb{border-radius:5px;padding:4px 6px;font-size:11px;position:relative;z-index:2;cursor:pointer;display:block}
+.lb.unterricht{background:var(--grbg);border-left:3px solid var(--gr);color:var(--gr)}
+.lb.meeting{background:var(--acbg);border-left:3px solid var(--acbor);color:var(--actx)}
+.lb.frei{background:var(--sur2);border-left:3px solid var(--borm);color:var(--tx3)}
+.lb.notiz{background:var(--ambg);border-left:3px solid var(--am);color:var(--am)}
+.lb-kl{font-weight:600;font-size:11px}
+.lb-no{font-size:10px;margin-top:1px;opacity:.75;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.lb-pr{font-size:10px;margin-top:1px;opacity:.6}
+/* HALBJAHR */
+.hjleg{display:flex;gap:12px;margin-bottom:10px;flex-wrap:wrap}
+.ll{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--tx2)}
+.ld{width:10px;height:10px;border-radius:2px;flex-shrink:0}
+.hjtbl{border-collapse:collapse;width:100%;table-layout:fixed}
+.hjtbl th{font-size:11px;font-weight:500;color:var(--tx2);text-align:center;padding:5px 2px;border-bottom:.5px solid var(--bor);background:var(--sur2)}
+.hjtbl th.dc{width:30px}
+.hjtbl th.mc{font-size:12px;font-weight:500;color:var(--tx)}
+.hjtbl td{border:.5px solid var(--bor);padding:0;height:22px;vertical-align:top}
+td.dnum{text-align:right;padding:3px 4px 0 0;font-size:10px;color:var(--tx3);background:var(--sur2);width:30px;white-space:nowrap}
+td.dnum.we{opacity:.4}
+td.dnum.tdn{color:var(--actx);font-weight:600;background:var(--acbg)}
+td.ec{cursor:pointer;position:relative;padding:1px 3px}
+td.ec:hover{background:var(--sur2)}
+td.ec.we{background:var(--bg);opacity:.6}
+td.ec.fer{background:#EAF3DE}
+td.ec.fer:hover{background:#d8eccc}
+td.ec.fei{background:#FCEAEA}
+td.ec.fei:hover{background:#f5d5d5}
+td.ec.emp{background:var(--sur2);opacity:.2;cursor:default}
+td.ec.tdc{outline:1.5px solid var(--acbor);outline-offset:-1px}
+.epill{display:inline-block;border-radius:2px;padding:1px 4px;font-size:10px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;line-height:1.4;cursor:pointer}
+.pk{background:#E6F1FB;color:#0C447C}
+.pd{background:#FCEBEB;color:#791F1F}
+.pt{background:#FAEEDA;color:#633806}
+.pf{background:#EAF3DE;color:#085041}
+.ps{background:#F1EFE8;color:#444441}
+/* STUNDENPLAN */
+.sp-table{border-collapse:collapse;width:100%;min-width:600px}
+.sp-table th{background:var(--sur2);border:.5px solid var(--bor);padding:7px 10px;font-size:12px;font-weight:500;color:var(--tx2);text-align:center}
+.sp-table td{border:.5px solid var(--bor);padding:3px}
+.sp-table td:first-child{background:var(--sur2);font-size:11px;color:var(--tx3);text-align:right;padding:4px 8px;white-space:nowrap}
+.sp-cell-btn{width:100%;background:transparent;border:none;font-size:11px;color:var(--tx);font-family:inherit;padding:4px 5px;cursor:pointer;text-align:left;border-radius:4px;min-height:40px;display:flex;flex-direction:column;gap:2px}
+.sp-cell-btn:hover{background:var(--sur2)}
+.sp-kl-tag{font-weight:600;font-size:11px;color:var(--actx)}
+.sp-fa-tag{font-size:10px;color:var(--tx3)}
+.sp-empty-tag{font-size:10px;color:var(--tx3);opacity:.4}
+.plan-tabs{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;align-items:center}
+.ptab{padding:5px 12px;border-radius:20px;border:.5px solid var(--borm);background:transparent;cursor:pointer;font-size:12px;color:var(--tx2);font-family:inherit;transition:all .12s}
+.ptab.active{background:var(--acbg);border-color:var(--acbor);color:var(--actx);font-weight:500}
+.ab-row{display:flex;gap:5px}
+.abtab{padding:4px 10px;border-radius:20px;border:.5px solid var(--borm);background:transparent;cursor:pointer;font-size:11px;color:var(--tx2);font-family:inherit;transition:all .12s}
+.abtab.active{background:var(--ambg);border-color:var(--am);color:var(--am);font-weight:500}
+/* KLASSENBUCH */
+.kb-wrap{overflow-x:auto}
+.kb-tbl{border-collapse:collapse;min-width:100%}
+.kb-tbl th{background:var(--sur2);border:.5px solid var(--bor);padding:6px 8px;font-size:11px;font-weight:500;color:var(--tx2);white-space:nowrap;text-align:center}
+.kb-tbl th.namecol{text-align:left;min-width:150px;position:sticky;left:0;z-index:3;background:var(--sur2)}
+.kb-tbl th.datecol{min-width:52px;cursor:pointer}
+.kb-tbl th.datecol:hover{background:var(--acbg);color:var(--actx)}
+.kb-tbl td{border:.5px solid var(--bor);padding:0;vertical-align:middle}
+.kb-tbl td.namecell{padding:6px 10px;font-size:12px;font-weight:500;background:var(--sur);position:sticky;left:0;z-index:2;min-width:150px;white-space:nowrap}
+.kb-tbl td.datacell{width:52px;min-width:52px;text-align:center;cursor:pointer;position:relative;transition:background .1s}
+.kb-tbl td.datacell:hover{filter:brightness(.93)}
+.kb-tbl td.trendcell{padding:4px 6px;text-align:center;min-width:70px}
+.kbdot{width:28px;height:28px;border-radius:50%;margin:0 auto;display:flex;align-items:center;justify-content:center;font-size:10px;cursor:pointer;user-select:none;transition:transform .1s}
+.kbdot:hover{transform:scale(1.12)}
+.kbdot.leer{background:var(--sur2);color:var(--tx3);border:.5px solid var(--borm)}
+.kbdot.gruen{background:#EAF3DE;color:#27500A}
+.kbdot.gelb{background:#FAEEDA;color:#633806}
+.kbdot.orange{background:#FAECE7;color:#712B13}
+.kbdot.rot{background:#FCEBEB;color:#791F1F}
+.note-ind{position:absolute;top:3px;right:3px;width:5px;height:5px;border-radius:50%;background:var(--acbor)}
+.trend-bar{display:flex;gap:2px;justify-content:center}
+.tb{width:8px;height:8px;border-radius:2px}
+.tb.gruen{background:#639922}.tb.gelb{background:#EF9F27}.tb.orange{background:#D85A30}.tb.rot{background:#E24B4A}.tb.leer{background:var(--bor)}
+.kl-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+.kltab{padding:6px 14px;border-radius:20px;border:.5px solid var(--borm);background:transparent;cursor:pointer;font-size:12px;color:var(--tx2);font-family:inherit;transition:all .12s}
+.kltab.active{background:var(--acbg);border-color:var(--acbor);color:var(--actx);font-weight:500}
+.kb-legend{display:flex;gap:12px;margin-bottom:10px;flex-wrap:wrap}
+.kll{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--tx2)}
+/* MODAL */
+.movl{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:200;padding:16px}
+.modal{background:var(--sur);border-radius:var(--rad);padding:20px;width:390px;max-width:100%;max-height:88dvh;overflow-y:auto}
+.mhd{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+.mtit{font-size:15px;font-weight:600}
+.field{margin-bottom:12px}
+.field label{display:block;font-size:12px;color:var(--tx2);margin-bottom:4px;font-weight:500}
+.field input,.field select,.field textarea{width:100%;background:var(--sur2);border:.5px solid var(--borm);border-radius:var(--rads);padding:8px 10px;font-size:13px;color:var(--tx);font-family:inherit}
+.field textarea{resize:vertical;min-height:90px;line-height:1.5}
+.field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--acbor)}
+.tchips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+.tchip{padding:5px 12px;border-radius:20px;font-size:12px;cursor:pointer;border:.5px solid var(--borm);color:var(--tx2);background:transparent;font-family:inherit;transition:all .12s}
+.tchip:hover{background:var(--sur2)}
+.tchip.active{border-color:var(--acbor);background:var(--acbg);color:var(--actx);font-weight:500}
+.colrow{display:flex;gap:7px;margin-bottom:14px}
+.colbtn{flex:1;padding:7px 4px;border-radius:8px;border:1.5px solid transparent;cursor:pointer;font-size:11px;font-weight:500;display:flex;flex-direction:column;align-items:center;gap:4px;background:transparent;font-family:inherit;transition:border-color .12s}
+.colbtn .cb-dot{width:20px;height:20px;border-radius:50%}
+.colbtn.active{border-color:var(--borm)}
+.colbtn.c-leer .cb-dot{background:var(--sur2);border:.5px solid var(--borm)}.colbtn.c-leer{color:var(--tx3)}
+.colbtn.c-gruen .cb-dot{background:#639922}.colbtn.c-gruen{color:#27500A}
+.colbtn.c-gelb .cb-dot{background:#EF9F27}.colbtn.c-gelb{color:#633806}
+.colbtn.c-orange .cb-dot{background:#D85A30}.colbtn.c-orange{color:#712B13}
+.colbtn.c-rot .cb-dot{background:#E24B4A}.colbtn.c-rot{color:#791F1F}
+.mfoot{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
+/* MISC */
+.srow{display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:.5px solid var(--bor);font-size:13px}
+.srow:last-child{border-bottom:none}
+.badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:500}
+.bg-gr{background:var(--grbg);color:var(--gr)}
+.bg-am{background:var(--ambg);color:var(--am)}
+.dz{border:1.5px dashed var(--borm);border-radius:var(--rad);padding:24px 20px;text-align:center;cursor:pointer;color:var(--tx3);transition:all .12s}
+.dz:hover{border-color:var(--acbor);background:var(--acbg);color:var(--actx)}
+.dz i{font-size:26px;display:block;margin-bottom:8px}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--tx);color:var(--bg);padding:10px 20px;border-radius:20px;font-size:13px;z-index:999;opacity:0;transition:opacity .2s;pointer-events:none;white-space:nowrap}
+.toast.show{opacity:1}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-thumb{background:var(--borm);border-radius:10px}
+@media print{.sidebar,.topbar,.tbact,.kl-tabs .btn,.kb-legend .btn{display:none!important}.app{display:block}.main{overflow:visible}.content{padding:8px}.kb-wrap{overflow:visible}}
+@media(max-width:700px){.sidebar{width:52px;min-width:52px}.logo-tx,.logo-sub,.ni span,.nsec{display:none}.ni{padding:10px;justify-content:center}.content{padding:12px}}
+</style>
+</head>
+<body>
+<div class="app">
+  <nav class="sidebar">
+    <div class="shead">
+      <div class="logo">
+        <div class="logo-ic"><i class="ti ti-notebook" aria-hidden="true"></i></div>
+        <div><div class="logo-tx">Lehrerplaner</div><div class="logo-sub" id="school-lbl">BBZ RD-ECK</div></div>
+      </div>
+    </div>
+    <div class="nsec">Planung</div>
+    <div class="ni active" id="nav-woche" onclick="showView('woche')"><i class="ti ti-calendar-week" aria-hidden="true"></i><span>Wochenplan</span></div>
+    <div class="ni" id="nav-halbjahr" onclick="showView('halbjahr')"><i class="ti ti-calendar-month" aria-hidden="true"></i><span>Halbjahr</span></div>
+    <div class="nsec">Klassen</div>
+    <div class="ni" id="nav-klassen" onclick="showView('klassen')"><i class="ti ti-school" aria-hidden="true"></i><span>Klassenbuch</span></div>
+    <div class="nsec">Setup</div>
+    <div class="ni" id="nav-stundenplan" onclick="showView('stundenplan')"><i class="ti ti-layout-grid" aria-hidden="true"></i><span>Stundenplan</span></div>
+    <div class="ni" id="nav-ferien" onclick="showView('ferien')"><i class="ti ti-sun" aria-hidden="true"></i><span>Ferien</span></div>
+    <div class="ni" id="nav-import" onclick="showView('import')"><i class="ti ti-upload" aria-hidden="true"></i><span>Import</span></div>
+    <div class="nsp"></div>
+    <div class="ni" id="nav-einstellungen" onclick="showView('einstellungen')"><i class="ti ti-settings" aria-hidden="true"></i><span>Einstellungen</span></div>
+  </nav>
+  <div class="main">
+    <div class="topbar">
+      <div class="tbtit" id="view-title">Wochenplan</div>
+      <div class="tbact" id="topbar-act"></div>
+    </div>
+    <div class="content" id="content"></div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const DAYS=['Mo','Di','Mi','Do','Fr'];
+const DAYS_FULL=['Montag','Dienstag','Mittwoch','Donnerstag','Freitag'];
+const HOURS=['7:45','8:30','9:30','10:15','11:20','12:05','13:05','13:50','14:45','15:30'];
+const MONTHS=['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
+function defaultFerien(sj){
+  var map={
+    '2025/26':[{s:'2025-10-04',e:'2025-10-18',l:'Herbst'},{s:'2025-12-22',e:'2026-01-06',l:'Weihnachten'},{s:'2026-03-16',e:'2026-03-21',l:'Frühjahr'},{s:'2026-06-22',e:'2026-08-04',l:'Sommer'}],
+    '2026/27':[{s:'2026-10-03',e:'2026-10-17',l:'Herbst'},{s:'2026-12-23',e:'2027-01-06',l:'Weihnachten'},{s:'2027-03-15',e:'2027-03-20',l:'Frühjahr'},{s:'2027-06-21',e:'2027-08-04',l:'Sommer'}],
+    '2027/28':[]};
+  return map[sj]||map['2025/26'];
+}
+function getFerien(sj){var v=localStorage.getItem('lp_ferien_'+sj);return v?JSON.parse(v):defaultFerien(sj);}
+function saveFerien(sj,arr){localStorage.setItem('lp_ferien_'+sj,JSON.stringify(arr));}
+function ostern(y){var a=y%19,b=Math.floor(y/100),c=y%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451),mo=Math.floor((h+l-7*m+114)/31),dy=((h+l-7*m+114)%31)+1;return new Date(y,mo-1,dy);}
+function addD(dt,n){var r=new Date(dt);r.setDate(r.getDate()+n);return r;}
+function fmtD(dt){return dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');}
+function getSHFeiertage(y){var o=ostern(y);var r={};r[fmtD(new Date(y,0,1))]='Neujahr';r[fmtD(addD(o,-2))]='Karfreitag';r[fmtD(o)]='Ostersonntag';r[fmtD(addD(o,1))]='Ostermontag';r[fmtD(new Date(y,4,1))]='Tag der Arbeit';r[fmtD(addD(o,39))]='Christi Himmelfahrt';r[fmtD(addD(o,49))]='Pfingstsonntag';r[fmtD(addD(o,50))]='Pfingstmontag';r[fmtD(new Date(y,9,3))]='Tag d. Dt. Einheit';r[fmtD(new Date(y,9,31))]='Reformationstag';r[fmtD(new Date(y,11,25))]='1. Weihnachtstag';r[fmtD(new Date(y,11,26))]='2. Weihnachtstag';return r;}
+const KB_COLORS=['leer','gruen','gelb','orange','rot'];
+const KB_LABELS={leer:'—',gruen:'Aktiv',gelb:'Gut',orange:'Wenig',rot:'Nicht'};
+const KB_CYCLE={leer:'gruen',gruen:'gelb',gelb:'orange',orange:'rot',rot:'leer'};
+const KB_BG={leer:'transparent',gruen:'#EAF3DE',gelb:'#FAEEDA',orange:'#FAECE7',rot:'#FCEBEB'};
+
+function ld(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch{return d}}
+function sv(k,v){localStorage.setItem(k,JSON.stringify(v))}
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2200)}
+function todayStr(){const t=new Date();return t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0')}
+
+const S={
+  view:'woche',week:getWeekNum(new Date()),year:new Date().getFullYear(),
+  modal:null,hjNum:1,spPlan:0,spAB:'A',selKlasse:null,selFach:'',schuljahr:ld('lp_sj','2025/26'),
+  lessons:ld('lp_lessons',{}),
+  klassen:ld('lp_klassen',[
+    {id:'k1',name:'11a BIN',fach:'Berufliche Informatik',schueler:[{id:'s1',name:'Müller, Anna'},{id:'s2',name:'Schmidt, Ben'},{id:'s3',name:'Koch, Clara'},{id:'s4',name:'Weber, David'},{id:'s5',name:'Braun, Elena'}]},
+    {id:'k2',name:'12b VW',fach:'English',schueler:[{id:'s6',name:'Fischer, Finn'},{id:'s7',name:'Wagner, Greta'},{id:'s8',name:'Becker, Hamid'}]},
+    {id:'k3',name:'11c VW-U',fach:'English',schueler:[{id:'s9',name:'Hoffmann, Ida'},{id:'s10',name:'Schulz, Jan'},{id:'s11',name:'Zimmermann, Kira'}]}
+  ]),
+  hjEntries:ld('lp_hj',{}),
+  stundenplaene:ld('lp_sp', buildDefaultPlans(4)),
+  weekConfig:ld('lp_wkcfg',{}),
+  kbData:ld('lp_kb',{}),
+  lessonLinks:ld('lp_links',{})
+};
+
+function buildDefaultPlans(n){
+  return Array.from({length:n},(_,i)=>({
+    name:`Plan ${i+1}`,
+    validFrom:'',
+    A:Array(8).fill(null).map(()=>Array(5).fill(null).map(()=>({kl:'',fa:''}))),
+    B:Array(8).fill(null).map(()=>Array(5).fill(null).map(()=>({kl:'',fa:''})))
+  }));
+}
+// Find the active plan for a given date
+function getActivePlan(dateStr){
+  // Filter plans that have a validFrom date and it's <= dateStr
+  const dated=S.stundenplaene.filter(p=>p.validFrom&&p.validFrom<=dateStr);
+  if(dated.length===0){
+    // No dated plans: use weekConfig or first plan
+    return null;
+  }
+  // Return the one with the latest validFrom (most recent)
+  dated.sort((a,b)=>b.validFrom.localeCompare(a.validFrom));
+  return S.stundenplaene.indexOf(dated[0]);
+}
+
+function saveAll(){sv('lp_lessons',S.lessons);sv('lp_klassen',S.klassen);sv('lp_hj',S.hjEntries);sv('lp_sp',S.stundenplaene);sv('lp_wkcfg',S.weekConfig);sv('lp_kb',S.kbData);sv('lp_sj',S.schuljahr);sv('lp_links',S.lessonLinks);}
+
+function getWeekNum(d){const dt=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate()));const dn=dt.getUTCDay()||7;dt.setUTCDate(dt.getUTCDate()+4-dn);const ys=new Date(Date.UTC(dt.getUTCFullYear(),0,1));return Math.ceil((((dt-ys)/86400000)+1)/7)}
+function getMonday(w,y){const j=new Date(y,0,1);const dw=j.getDay()||7;const m1=new Date(j);m1.setDate(j.getDate()+(1-dw));const r=new Date(m1);r.setDate(m1.getDate()+(w-1)*7);return r}
+function fmtDate(d){return d.getDate()+'.'+(d.getMonth()+1)+'.'}
+function dStr(y,m,d){return y+'-'+String(m+1).padStart(2,'0')+'-'+String(d).padStart(2,'0')}
+function curSJ(){return S.schuljahr||'2025/26';}
+function isFerie(ds){return getFerien(curSJ()).some(f=>ds>=f.s&&ds<=f.e);}
+function isFeiertag(ds){
+  // Check imported Feiertage first (stored as single-day Ferien-blocks with isFeiertag flag)
+  var imported=getFerien(curSJ()).find(function(f){return f.isFeiertag&&ds>=f.s&&ds<=f.e;});
+  if(imported)return true;
+  return false;
+}
+function importFeiertageSH(){
+  var sj=curSJ();
+  var y1=parseInt(sj.split('/')[0]);
+  var y2=2000+parseInt(sj.split('/')[1]);
+  var blocks=[];
+  [y1,y2].forEach(function(y){
+    var fe=getSHFeiertage(y);
+    Object.keys(fe).forEach(function(ds){blocks.push({s:ds,e:ds,l:fe[ds],isFeiertag:true});});
+  });
+  var current=getFerien(sj);
+  // Remove old imported feiertage first (avoid duplicates), keep manual ferien
+  var kept=current.filter(function(f){return !f.isFeiertag;});
+  var merged=kept.concat(blocks).sort(function(a,b){return a.s.localeCompare(b.s);});
+  saveFerien(sj,merged);
+  toast(blocks.length+' Feiertage (SH) importiert');
+  render();
+}
+function feiertagLabel(ds){var y=parseInt(ds.slice(0,4));return getSHFeiertage(y)[ds]||'';}
+function ferieLabel(ds){var f=getFerien(curSJ()).find(f=>ds>=f.s&&ds<=f.e);return f?f.l:'';}
+function daysInMonth(y,m){return new Date(y,m+1,0).getDate()}
+function dow(y,m,d){const w=new Date(y,m,d).getDay();return w===0?6:w-1}
+
+/* KB helpers */
+function kbKey(klId,sId,date,fach){return klId+'||'+sId+'||'+date+(fach?'||'+fach:'')}
+function kbKeyMatch(key,klId,fach){
+  const p=key.split('||');
+  if(p[0]!==klId)return false;
+  if(!fach)return true; // no fach filter
+  return p[3]===fach||(!p[3]&&!fach);
+}
+function kbGet(klId,sId,date,fach){return S.kbData[kbKey(klId,sId,date,fach||S.selFach)]||{color:'leer',note:''}}
+function kbSet(klId,sId,date,val,fach){S.kbData[kbKey(klId,sId,date,fach||S.selFach)]=val;saveAll()}
+function kbDates(klId,fach){
+  const ds=new Set();
+  Object.keys(S.kbData).forEach(k=>{
+    const p=k.split('||');
+    if(p[0]!==klId||!p[2])return;
+    if(fach&&(p[3]||'')!==fach)return; // filter by fach
+    ds.add(p[2]);
+  });
+  return[...ds].sort();
+}
+
+/* Add a date column to KB for a class (called from Wochenplan) */
+function kbAddDate(klId,dateStr,fach){
+  const kl=S.klassen.find(k=>k.id===klId);
+  if(!kl)return;
+  kl.schueler.forEach(s=>{const k=kbKey(klId,s.id,dateStr,fach||'');if(!S.kbData[k])S.kbData[k]={color:'leer',note:''}});
+  saveAll();
+}
+
+function getWeekSP(w,y){
+  const cfg=S.weekConfig[`${y}-${w}`]||{};
+  // If week has manual override, use it
+  if(cfg.plan!==undefined){
+    return{plan:S.stundenplaene[cfg.plan]||S.stundenplaene[0],ab:cfg.ab||'A',planIdx:cfg.plan};
+  }
+  // Auto-detect: find plan with latest validFrom <= Monday of this week
+  const monday=getMonday(w,y);
+  const mondayStr=monday.getFullYear()+'-'+String(monday.getMonth()+1).padStart(2,'0')+'-'+String(monday.getDate()).padStart(2,'0');
+  const autoIdx=getActivePlan(mondayStr);
+  if(autoIdx!==null&&autoIdx!==undefined){
+    return{plan:S.stundenplaene[autoIdx],ab:cfg.ab||'A',planIdx:autoIdx,auto:true};
+  }
+  return{plan:S.stundenplaene[0],ab:cfg.ab||'A',planIdx:0};
+}
+
+function showView(v,extra){
+  S.view=v;
+  if(extra&&extra.klId)S.selKlasse=extra.klId;
+  document.querySelectorAll('.ni').forEach(n=>n.classList.remove('active'));
+  const nav=document.getElementById('nav-'+v);
+  if(nav)nav.classList.add('active');
+  render();
+}
+
+function render(){
+  const c=document.getElementById('content');
+  const ta=document.getElementById('topbar-act');
+  const vt=document.getElementById('view-title');
+  const titles={woche:'Wochenplan',halbjahr:'Halbjahresübersicht',klassen:'Klassenbuch',stundenplan:'Stundenplan',ferien:'Ferien & Schuljahr',import:'Import',einstellungen:'Einstellungen'};
+  vt.textContent=titles[S.view]||'';
+  ta.innerHTML='';
+  ({woche:renderWoche,halbjahr:renderHalbjahr,klassen:renderKlassen,stundenplan:renderStundenplan,ferien:renderFerien,import:renderImport,einstellungen:renderEinstellungen})[S.view]?.(c,ta);
+  renderModal();
+}
+
+/* ===== WOCHENPLAN ===== */
+function renderWoche(c,ta){
+  const monday=getMonday(S.week,S.year);
+  const today=new Date();
+  const todayIdx=today.getDay()-1;
+  const isThisWk=getWeekNum(today)===S.week&&today.getFullYear()===S.year;
+  const wk=`${S.year}-${S.week}`;
+  const {plan,ab,planIdx}=getWeekSP(S.week,S.year);
+  const spGrid=plan[ab]||plan.A;
+
+  const sjOpts=['2025/26','2026/27','2027/28'].map(s=>'<option value="'+s+'" '+(curSJ()===s?'selected':'')+'>'+s+'</option>').join('');
+  ta.innerHTML=`
+    <div style="display:flex;align-items:center;gap:5px">
+      <button class="btn ico" onclick="chgWk(-1)"><i class="ti ti-chevron-left"></i></button>
+      <span style="font-size:13px;font-weight:600;min-width:58px;text-align:center">KW ${S.week}</span>
+      <button class="btn ico" onclick="chgWk(1)"><i class="ti ti-chevron-right"></i></button>
+    </div>
+    <button class="btn" onclick="goToday()"><i class="ti ti-calendar-event" aria-hidden="true"></i>Heute</button>
+    <select onchange="setSJ(this.value)" style="font-size:12px;padding:5px 8px;border:.5px solid var(--borm);border-radius:var(--rads);background:var(--sur2);color:var(--tx);font-family:inherit">${sjOpts}</select>
+    <select onchange="setWkPlan(this.value)" style="font-size:12px;padding:5px 8px;border:.5px solid var(--borm);border-radius:var(--rads);background:var(--sur2);color:var(--tx);font-family:inherit">
+      ${S.stundenplaene.map((p,i)=>`<option value="${i}" ${planIdx===i?'selected':''}>${esc(p.name)}</option>`).join('')}
+    </select>
+    <select onchange="setWkAB(this.value)" style="font-size:12px;padding:5px 8px;border:.5px solid var(--borm);border-radius:var(--rads);background:var(--sur2);color:var(--tx);font-family:inherit">
+      <option value="A" ${ab==='A'?'selected':''}>A-Woche</option>
+      <option value="B" ${ab==='B'?'selected':''}>B-Woche</option>
+    </select>
+    <button class="btn pri" onclick="openAddLesson()"><i class="ti ti-plus" aria-hidden="true"></i>Eintrag</button>`;
+
+  let headers=`<div class="wg-cor"><span style="font-size:9px;color:var(--tx3)">${ab}</span></div>`;
+  for(let d=0;d<5;d++){
+    const date=new Date(monday);date.setDate(monday.getDate()+d);
+    const hds=date.getFullYear()+'-'+String(date.getMonth()+1).padStart(2,'0')+'-'+String(date.getDate()).padStart(2,'0');
+    const isToday=isThisWk&&d===todayIdx;
+    const hFer=isFerie(hds);const hFei=false; // Feiertage now merged into isFerie (same green color)
+    const hHJ=S.hjEntries[hds];
+    // Background: HJ-Termin type trumps Ferien/Feiertag color
+    const hjColorMap={konferenz:'#ddeef9',deadline:'#fbe8e8',termin:'#faeeda',frei:'#EAF3DE',sonstiges:'#f1efe8'};
+    const hBg=hHJ?hjColorMap[hHJ.type]||'#f1efe8':hFer?'#EAF3DE':hFei?'#FCEAEA':'';
+    const hStyle=hBg?' style="background:'+hBg+'"':'';
+    // Sub-line: HJ entry text (if exists), else Ferien/Feiertag label
+    const hjTypeColor={konferenz:'#0C447C',deadline:'#791F1F',termin:'#633806',frei:'#085041',sonstiges:'#444441'};
+    const hSub=hHJ
+      ?'<div style="font-size:9px;font-weight:500;color:'+( hjTypeColor[hHJ.type]||'#444')+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;padding:0 2px">'+esc(hHJ.text)+'</div>'
+      :hFer?'<div style="font-size:9px;color:#3B6D11">'+ferieLabel(hds)+'</div>'
+      :hFei?'<div style="font-size:9px;color:#8B2E2E">'+feiertagLabel(hds)+'</div>':'';
+    headers+=`<div class="wg-day ${isToday?'tod':''}"${hStyle}><div class="wg-dn">${DAYS[d]}</div><div class="wg-dd">${fmtDate(date)}</div>${hSub}</div>`;
+  }
+
+  let rows='';
+  for(let h=0;h<HOURS.length;h++){
+    let cells=`<div class="wg-time">${HOURS[h]}</div>`;
+    for(let d=0;d<5;d++){
+      const cellDate=new Date(monday);cellDate.setDate(monday.getDate()+d);
+      const cellDateStr=cellDate.getFullYear()+'-'+String(cellDate.getMonth()+1).padStart(2,'0')+'-'+String(cellDate.getDate()).padStart(2,'0');
+      const key=`${wk}-${d}-${h}`;
+      const l=S.lessons[key];
+      const spCell=spGrid?.[h]?.[d]||{kl:'',fa:''};
+      const hasSpData=spCell.kl||spCell.fa;
+      const klId=spCell.kl?S.klassen.find(k=>k.name===spCell.kl)?.id:null;
+
+      let bg='';
+      if(hasSpData){
+        bg=`<div class="sp-bg"><div class="sp-kl">${esc(spCell.kl)}</div><div class="sp-fa">${esc(spCell.fa)}</div></div>`;
+      }
+      let klLink='';
+      if(klId){
+        klLink=`<a class="sp-link" onclick="openKlasseFromLesson(event,'${klId}','${cellDateStr}','${esc(spCell.fa||'')}')" href="#" title="${esc(spCell.fa||kl?.fach||'')} – Zur Klassenliste">→ ${esc(spCell.fa||'Liste')}</a>`;
+      }
+      let entry='';
+      if(l){
+        entry=`<div class="lb ${l.type||'unterricht'}" onclick="openEditLesson(event,'${key}')" style="position:relative;z-index:2">
+          <div class="lb-kl">${esc(l.klasse||spCell.kl||'')}</div>
+          ${l.notiz?`<div class="lb-no">${esc(l.notiz)}</div>`:''}
+          ${l.fortschritt?`<div class="lb-pr">→ ${esc(l.fortschritt)}</div>`:''}
+          ${S.lessonLinks[key]?`<a class="lb-nclink" href="${S.lessonLinks[key].url}" target="_blank" onclick="event.stopPropagation()"><i class='ti ti-paperclip' style='font-size:9px'></i>${esc(S.lessonLinks[key].label||'AB')}</a>`:''}
+        </div>`;
+      } else {
+        entry=`<div class="cell-click" onclick="openAddLessonAt('${key}','${esc(spCell.kl||'')}','${esc(spCell.fa||'')}')"></div>`;
+      }
+      const dFer=isFerie(cellDateStr);const dFei=false;
+      const cCls='wg-cell'+(dFer?' wk-fer':dFei?' wk-fei':'');
+      const fLbl=!l&&dFer&&h===0?'<div style="font-size:9px;color:#3B6D11;opacity:.6;padding:2px 4px">'+ferieLabel(cellDateStr)+'</div>':
+        !l&&dFei&&h===0?'<div style="font-size:9px;color:#8B2E2E;opacity:.7;padding:2px 4px">'+feiertagLabel(cellDateStr)+'</div>':'';
+      cells+=`<div class="${cCls}">${bg}${fLbl}${entry}${klLink}</div>`;
+    }
+    rows+=`<div class="wg-row" style="display:contents">${cells}</div>`;
+  }
+
+  let summary='';
+  const wkL=Object.entries(S.lessons).filter(([k])=>k.startsWith(wk+'-'));
+  if(wkL.length){
+    const byD={};
+    wkL.forEach(([k,l])=>{const d=parseInt(k.split('-')[2]);if(!byD[d])byD[d]=[];byD[d].push(l)});
+    let srows='';
+    for(let d=0;d<5;d++){
+      if(!byD[d])continue;
+      srows+=`<div style="margin-bottom:8px"><div style="font-size:12px;font-weight:600;color:var(--tx2);margin-bottom:3px">${DAYS_FULL[d]}</div>`;
+      byD[d].forEach(l=>{
+        const col={unterricht:'var(--gr)',meeting:'var(--ac)',frei:'var(--tx3)',notiz:'var(--am)'}[l.type||'unterricht'];
+        srows+=`<div style="display:flex;align-items:flex-start;gap:8px;font-size:12px;padding:3px 0">
+          <span style="width:7px;height:7px;border-radius:50%;background:${col};flex-shrink:0;margin-top:3px"></span>
+          <span style="font-weight:600;min-width:90px;flex-shrink:0">${esc(l.klasse||'—')}</span>
+          <span style="color:var(--tx2);flex:1">${esc(l.notiz||'')}</span>
+          ${l.fortschritt?`<span class="badge bg-gr">${esc(l.fortschritt)}</span>`:''}
+        </div>`;
+      });
+      srows+='</div>';
+    }
+    summary=`<div class="card"><div class="ctit"><i class="ti ti-notes" aria-hidden="true"></i>Wochennotizen</div>${srows}</div>`;
+  }
+
+    c.innerHTML=`<div class="wkwrap"><div class="wkgrid">${headers}${rows}</div></div>${summary}`;
+}
+
+function chgWk(d){S.week+=d;if(S.week<1){S.week=52;S.year--}if(S.week>52){S.week=1;S.year++}render()}
+function goToday(){S.week=getWeekNum(new Date());S.year=new Date().getFullYear();render()}
+function setWkPlan(v){const k=`${S.year}-${S.week}`;if(!S.weekConfig[k])S.weekConfig[k]={};S.weekConfig[k].plan=parseInt(v);saveAll();render()}
+function setWkAB(v){const k=`${S.year}-${S.week}`;if(!S.weekConfig[k])S.weekConfig[k]={};S.weekConfig[k].ab=v;saveAll();render()}
+
+function openKlasseFromLesson(e,klId,dateStr,fach){
+  e.preventDefault();e.stopPropagation();
+  kbAddDate(klId,dateStr,fach);
+  S.selKlasse=klId;
+  S.selFach=fach||'';
+  showView('klassen');
+  toast('Datum '+dateStr+(fach?' ('+fach+')':'')+' im Klassenbuch angelegt');
+}
+
+/* ===== HALBJAHR ===== */
+function renderHalbjahr(c,ta){
+  const sj=curSJ();
+  const [sjY1s,sjY2s]=sj.split('/');
+  const y1=parseInt(sjY1s);
+  const y2=2000+parseInt(sjY2s);
+  const months=S.hjNum===1?
+    [{y:y1,m:7},{y:y1,m:8},{y:y1,m:9},{y:y1,m:10},{y:y1,m:11},{y:y2,m:0}]:
+    [{y:y2,m:1},{y:y2,m:2},{y:y2,m:3},{y:y2,m:4},{y:y2,m:5},{y:y2,m:6}];
+  const maxD=Math.max(...months.map(({y,m})=>daysInMonth(y,m)));
+  const today=todayStr();
+  const sjList=['2025/26','2026/27','2027/28'];
+  const sjBtns=sjList.map((s,si)=>'<button class="btn sml '+(s===sj?'pri':'')+'" onclick="setSJ([\'2025/26\',\'2026/27\',\'2027/28\']['+si+'])">'+ s +'</button>').join('');
+  ta.innerHTML='<span style="font-size:12px;color:var(--tx2);flex-shrink:0">Schuljahr:</span>'+sjBtns
+    +'<button class="btn sml" onclick="showView(&quot;ferien&quot;)" style="margin-left:4px"><i class="ti ti-sun" aria-hidden="true"></i> Ferien</button>'
+    +'<button class="btn sml" onclick="archiveSJ()" style="margin-left:auto"><i class="ti ti-download" aria-hidden="true"></i> Archivieren</button>';
+  let h='<div style="display:flex;gap:6px;margin-bottom:10px">'
+    +'<button class="btn '+(S.hjNum===1?'pri':'')+'" onclick="setHJ(1)">Aug – Jan</button>'
+    +'<button class="btn '+(S.hjNum===2?'pri':'')+'" onclick="setHJ(2)">Feb – Jul</button></div>'
+    +'<div class="hjleg">'
+    +'<span class="ll"><span class="ld" style="background:#E6F1FB;border:.5px solid #85B7EB"></span>Konferenz</span>'
+    +'<span class="ll"><span class="ld" style="background:#FCEBEB;border:.5px solid #F09595"></span>Deadline</span>'
+    +'<span class="ll"><span class="ld" style="background:#FAEEDA;border:.5px solid #EF9F27"></span>Termin</span>'
+    +'<span class="ll"><span class="ld" style="background:#EAF3DE;border:.5px solid #97C459"></span>Ferien</span>'
+    +'<span class="ll"><span class="ld" style="background:#F1EFE8;border:.5px solid #B4B2A9"></span>Sonstiges</span>'
+    +(getFerien(sj).some(function(f){return f.isFeiertag;})?'':'<span class="ll" style="color:var(--am)"><i class="ti ti-alert-triangle" style="font-size:12px"></i> Keine Feiertage importiert – <a href="#" onclick="importFeiertageSH();return false;" style="color:var(--actx);text-decoration:underline">jetzt importieren</a></span>')
+    +'</div><div style="overflow-x:auto"><table class="hjtbl"><thead><tr><th class="dc"></th>';
+  months.forEach(({y,m})=>{h+='<th class="mc">'+MONTHS[m]+'<br><span style="font-size:10px;font-weight:400;color:var(--tx3)">'+y+'</span></th>';});
+  h+='</tr></thead><tbody>';
+  for(let d=1;d<=maxD;d++){
+    const valid=months.filter(({y,m})=>d<=daysInMonth(y,m));
+    if(!valid.length)continue;
+    const {y:fy,m:fm}=valid[0];
+    const dw0=dow(fy,fm,d);
+    const isWE=dw0>=5;
+    const dayL=['Mo','Di','Mi','Do','Fr','Sa','So'];
+    const isTodayRow=months.some(({y,m})=>dStr(y,m,d)===today);
+    h+='<tr><td class="dnum'+(isWE?' we':'')+(isTodayRow?' tdn':'')+'">'+d+'<br><span style="font-size:9px">'+dayL[dw0]+'</span></td>';
+    months.forEach(({y,m})=>{
+      if(d>daysInMonth(y,m)){h+='<td class="ec emp"></td>';return;}
+      const ds=dStr(y,m,d);
+      const fer=isFerie(ds);
+            const entry=S.hjEntries[ds];
+      let cls='ec';
+      if(isWE)cls+=' we';if(fer)cls+=' fer';if(ds===today)cls+=' tdc';
+      const pc={konferenz:'pk',deadline:'pd',termin:'pt',frei:'pf',sonstiges:'ps'};
+      let inner='';
+      if(entry){inner='<span class="epill '+(pc[entry.type]||'ps')+'" onclick="openHJEdit(event,&quot;'+ds+'&quot;)">'+esc(entry.text)+'</span>';}
+      else if(fer&&!isWE){inner='<span style="font-size:9px;color:#3B6D11;opacity:.6">'+ferieLabel(ds)+'</span>';}
+      h+='<td class="'+cls+'" onclick="openHJAdd(&quot;'+ds+'&quot;)">'+inner+'</td>';
+    });
+    h+='</tr>';
+  }
+  h+='</tbody></table></div>';
+  c.innerHTML=h;
+}
+function setHJ(n){S.hjNum=n;render();}
+function setSJ(sj){S.schuljahr=sj;sv('lp_sj',sj);const y1=parseInt(sj.split('/')[0]);S.week=getWeekNum(new Date(y1,7,1));S.year=y1;render();toast('Schuljahr '+sj);}
+function archiveSJ(){
+  const sj=curSJ();
+  const data={schuljahr:sj,lessons:S.lessons,klassen:S.klassen,hjEntries:S.hjEntries,kbData:S.kbData,stundenplaene:S.stundenplaene,weekConfig:S.weekConfig,ferien:getFerien(sj),archived:new Date().toISOString()};
+  const b=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(b);
+  a.download='lehrerplaner-archiv-'+sj.replace('/','_')+'.json';a.click();
+  toast('Archiv wird heruntergeladen...');
+  setTimeout(()=>{
+    if(confirm('Archiv gespeichert!\nEinträge dieses Schuljahres löschen und neu starten?\n(Klassen + Stundenpläne bleiben erhalten)')){
+      const y1=parseInt(sj.split('/')[0]);const y2=2000+parseInt(sj.split('/')[1]);
+      Object.keys(S.lessons).forEach(k=>{const y=parseInt(k);if(y===y1||y===y2)delete S.lessons[k];});
+      Object.keys(S.hjEntries).forEach(k=>{const y=parseInt(k);if(y===y1||y===y2)delete S.hjEntries[k];});
+      Object.keys(S.kbData).forEach(k=>{const dt=(k.split('||')[2]||'');const y=parseInt(dt);if(y===y1||y===y2)delete S.kbData[k];});
+      saveAll();toast('Daten von '+sj+' geleert');render();
+    }
+  },1200);
+}
+function openHJAdd(ds){S.modal={type:'hj',ds};renderModal()}
+function openHJEdit(e,ds){e.stopPropagation();S.modal={type:'hj',ds};renderModal()}
+
+/* ===== KLASSENBUCH ===== */
+function renderKlassen(c,ta){
+  if(!S.selKlasse&&S.klassen.length)S.selKlasse=S.klassen[0].id;
+  const kl=S.klassen.find(k=>k.id===S.selKlasse);
+
+  ta.innerHTML=`<button class="btn pri" onclick="window.print()"><i class="ti ti-printer" aria-hidden="true"></i>Drucken</button>
+    <button class="btn" onclick="openAddKlasse()"><i class="ti ti-plus" aria-hidden="true"></i>Klasse</button>
+    <button class="btn" onclick="openAddSuS()" ${!S.selKlasse?'disabled title="Erst Klasse auswählen"':''}><i class="ti ti-user-plus" aria-hidden="true"></i>Schüler/in</button>`;
+
+  let tabs='<div class="kl-tabs">';
+  S.klassen.forEach(k=>{
+    const isActive=k.id===S.selKlasse;
+    tabs+='<span style="display:inline-flex;align-items:center;gap:2px;margin-right:4px">';
+    tabs+='<button class="kltab '+(isActive?'active':'')+' " onclick="selKl(\''+k.id+'\')">'+ esc(k.name)+'</button>';
+    tabs+='<button onclick="openEditKlasse(\''+k.id+'\')" title="Umbenennen / Löschen" style="background:transparent;border:none;cursor:pointer;padding:2px 4px;color:var(--tx3);font-size:11px;line-height:1" onmouseover="this.style.color=\'var(--tx)\'" onmouseout="this.style.color=\'var(--tx3)\'"><i class="ti ti-dots-vertical"></i></button>';
+    tabs+='</span>';
+  });
+  tabs+='<button class="btn sml" onclick="addKbDateManual()" style="margin-left:4px"><i class="ti ti-calendar-plus" aria-hidden="true"></i>Datum</button></div>';
+
+  if(!kl){c.innerHTML=tabs+'<div style="text-align:center;padding:40px;color:var(--tx3)">Keine Klasse ausgewählt</div>';return}
+
+  // Collect all fächer for this class from KB data
+  const allFaecher=[...new Set(Object.keys(S.kbData).filter(k=>k.startsWith(kl.id+'||')).map(k=>k.split('||')[3]||'').filter(Boolean))];
+  // If selFach is not in this class, reset
+  if(S.selFach&&!allFaecher.includes(S.selFach))S.selFach=allFaecher[0]||'';
+  const dates=kbDates(S.selKlasse,S.selFach);
+  const fmtD=d=>{const p=d.split('-');return p[2]+'.'+p[1]+'.'+(p[0].slice(2))};
+
+  let tbl='';
+  if(dates.length===0){
+    tbl=`<div style="text-align:center;padding:40px 20px;color:var(--tx3);font-size:13px">
+      <i class="ti ti-calendar-event" style="font-size:28px;display:block;margin-bottom:10px" aria-hidden="true"></i>
+      Noch keine Unterrichtsdaten.<br>Klicke im Wochenplan auf „→ Liste" bei einer Stunde,<br>oder füge ein Datum manuell hinzu.
+      <br><br><button class="btn" onclick="openAddSuS()" style="margin:0 auto;font-size:12px"><i class="ti ti-user-plus" aria-hidden="true"></i>Schüler/in hinzufügen</button>
+    </div>`;
+  } else {
+    tbl=`<div class="kb-legend">
+      <span class="kll"><span style="width:11px;height:11px;border-radius:50%;background:#639922;display:inline-block"></span>Aktiv</span>
+      <span class="kll"><span style="width:11px;height:11px;border-radius:50%;background:#EF9F27;display:inline-block"></span>Gut</span>
+      <span class="kll"><span style="width:11px;height:11px;border-radius:50%;background:#D85A30;display:inline-block"></span>Wenig</span>
+      <span class="kll"><span style="width:11px;height:11px;border-radius:50%;background:#E24B4A;display:inline-block"></span>Nicht aktiv</span>
+      <span class="kll"><span style="width:5px;height:5px;border-radius:50%;background:var(--acbor);display:inline-block"></span>Notiz</span>
+      <span class="kll" style="color:var(--tx3);font-size:10px">Klick = Farbe · Rechtsklick = Notiz</span>
+      <span class="kll" style="margin-left:auto;color:var(--tx3);font-size:10px">Klick = Farbe · Rechtsklick = Notiz</span>
+    </div>
+${allFaecher.length>0?`<div style='display:flex;gap:6px;margin-bottom:8px;align-items:center'><span style='font-size:11px;color:var(--tx2);font-weight:500'>Fach:</span>${[''].concat(allFaecher).map(f=>'<button class="btn sml '+(S.selFach===f?'pri':'')+'" onclick="setSelFach(\''+f+'\')">'+(f||'Alle')+'</button>').join('')}</div>`:''}
+    <div class="kb-wrap"><table class="kb-tbl"><thead><tr>
+      <th class="namecol">Schüler/in</th>`;
+    dates.forEach(d=>{
+      // Show fach in header if no fach filter (showing all)
+      const colKey=Object.keys(S.kbData).find(k=>k.startsWith(kl.id+'||'+kl.schueler[0]?.id+'||'+d));
+      const colFach=colKey?colKey.split('||')[3]||'':'';
+      const colLbl=fmtD(d)+(colFach&&!S.selFach?'<br><span style="font-size:9px;color:var(--actx);font-weight:400">'+esc(colFach)+'</span>':'');
+      tbl+=`<th class="datecol" title="Spalte löschen" onclick="confirmDelKbDate('${d}')">${colLbl}</th>`;
+    });
+    tbl+=`<th style="min-width:70px;text-align:center">Trend</th></tr></thead><tbody>`;
+
+    kl.schueler.forEach(s=>{
+      tbl+=`<tr><td class="namecell" style="display:flex;align-items:center;justify-content:space-between;gap:4px">${esc(s.name)}<button onclick="deleteSuS('${s.id}')" title="Schüler/in löschen" style="background:transparent;border:none;cursor:pointer;color:var(--tx3);font-size:11px;padding:1px 3px;line-height:1;flex-shrink:0" onmouseover="this.style.color='var(--re)'" onmouseout="this.style.color='var(--tx3)'"><i class='ti ti-x'></i></button></td>`;
+      dates.forEach(d=>{
+        const e=kbGet(S.selKlasse,s.id,d);
+        const hasNote=e.note&&e.note.trim();
+        tbl+=`<td class="datacell" style="background:${KB_BG[e.color]}"
+          onclick="kbCycleColor('${s.id}','${d}')"
+          oncontextmenu="openKbNote(event,'${s.id}','${d}');return false">
+          <div class="kbdot ${e.color}">${hasNote?'<i class="ti ti-notes" style="font-size:9px" aria-hidden="true"></i>':''}</div>
+          ${hasNote?'<span class="note-ind"></span>':''}
+        </td>`;
+      });
+      const lastFive=dates.slice(-5).map(d=>`<span class="tb ${kbGet(S.selKlasse,s.id,d).color}"></span>`).join('');
+      tbl+=`<td class="trendcell"><div class="trend-bar">${lastFive}</div></td></tr>`;
+    });
+    tbl+='</tbody></table></div>';
+  }
+
+  c.innerHTML=tabs+tbl;
+}
+
+function selKl(id){S.selKlasse=id;S.selFach='';render()}
+function setSelFach(f){S.selFach=f;render();}
+function openAddSuS(){
+  if(!S.selKlasse){toast('Bitte zuerst eine Klasse auswählen');return;}
+  S.modal={type:'addSuS'};renderModal();
+}
+function saveSuS(){
+  const n=document.getElementById('ns-n')?.value.trim()||'';
+  if(!n){alert('Bitte einen Namen eingeben.');return;}
+  const kl=S.klassen.find(k=>k.id===S.selKlasse);
+  if(!kl)return;
+  kl.schueler.push({id:'s'+Date.now(),name:n});
+  saveAll();closeModal();toast(n+' hinzugefügt');render();
+}
+function deleteSuS(sid){
+  const kl=S.klassen.find(k=>k.id===S.selKlasse);
+  if(!kl)return;
+  const s=kl.schueler.find(x=>x.id===sid);
+  if(!s)return;
+  if(!confirm('"'+s.name+'" aus der Klasse entfernen?\nMitarbeitsdaten dieser Person werden ebenfalls gelöscht.'))return;
+  Object.keys(S.kbData).forEach(k=>{if(k.startsWith(S.selKlasse+'||'+sid+'||'))delete S.kbData[k];});
+  kl.schueler=kl.schueler.filter(x=>x.id!==sid);
+  saveAll();toast(s.name+' entfernt');render();
+}
+function addKbDateManual(){
+  const d=prompt('Datum (TT.MM.JJJJ):',new Date().toLocaleDateString('de-DE'));
+  if(!d)return;
+  const p=d.split('.');if(p.length<3)return;
+  const iso=`${p[2]}-${p[1].padStart(2,'0')}-${p[0].padStart(2,'0')}`;
+  kbAddDate(S.selKlasse,iso);render();toast('Datum hinzugefügt')}
+
+function kbCycleColor(sid,date){
+  const e=kbGet(S.selKlasse,sid,date);
+  e.color=KB_CYCLE[e.color]||'gruen';
+  kbSet(S.selKlasse,sid,date,e);render()}
+
+function openKbNote(ev,sid,date){
+  ev.preventDefault();ev.stopPropagation();
+  S.modal={type:'kbnote',sid,date};renderModal()}
+
+function confirmDelKbDate(date){
+  const fachLabel=S.selFach?' ('+S.selFach+')':'';
+  if(!confirm('Spalte '+date+fachLabel+' löschen?'))return;
+  const kl=S.klassen.find(k=>k.id===S.selKlasse);
+  kl?.schueler.forEach(s=>delete S.kbData[kbKey(S.selKlasse,s.id,date,S.selFach)]);
+  saveAll();render()}
+
+/* ===== STUNDENPLAN ===== */
+function renderStundenplan(c,ta){
+  ta.innerHTML=`<button class="btn pri" onclick="addPlan()"><i class="ti ti-plus" aria-hidden="true"></i>Plan hinzufügen</button>`;
+  const plan=S.stundenplaene[S.spPlan]||S.stundenplaene[0];
+  const grid=plan[S.spAB]||plan.A;
+
+  let ptabs=S.stundenplaene.map((p,i)=>`<button class="ptab ${i===S.spPlan?'active':''}" onclick="setSPplan(${i})">${esc(p.name)}</button>`).join('');
+  const ko=S.klassen.map(k=>`<option value="${esc(k.name)}">${esc(k.name)}</option>`).join('');
+
+  let html=`<div class="plan-tabs">${ptabs}
+    <div class="ab-row" style="margin-left:auto">
+      <button class="abtab ${S.spAB==='A'?'active':''}" onclick="setSPab('A')">A-Woche</button>
+      <button class="abtab ${S.spAB==='B'?'active':''}" onclick="setSPab('B')">B-Woche</button>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap">
+    <label style="font-size:12px;color:var(--tx2)">Name:</label>
+    <input type="text" value="${esc(plan.name)}" onchange="renamePlan(this.value)" style="font-size:13px;padding:5px 8px;border:.5px solid var(--borm);border-radius:var(--rads);background:var(--sur2);color:var(--tx);width:160px;font-family:inherit">
+    <label style="font-size:12px;color:var(--tx2);margin-left:8px"><i class="ti ti-calendar-event" style="font-size:12px" aria-hidden="true"></i> Gültig ab:</label>
+    <input type="date" value="${plan.validFrom||''}" onchange="setPlanValidFrom(this.value)" style="font-size:12px;padding:5px 8px;border:.5px solid var(--borm);border-radius:var(--rads);background:var(--sur2);color:var(--tx);font-family:inherit" title="Leer lassen = manuell auswählen">
+    <span style="font-size:11px;color:var(--tx3)">Leer = manuell wählen</span>
+    ${S.stundenplaene.length>1?`<button class="btn dan sml" onclick="deletePlan()"><i class="ti ti-trash" aria-hidden="true"></i>Plan löschen</button>`:''}
+  </div>`;
+  html+='<div style="overflow-x:auto"><table class="sp-table"><thead><tr><th style="width:58px">Std.</th>'+DAYS.map(d=>'<th>'+d+'</th>').join('')+'</tr></thead><tbody>';
+  for(let h=0;h<HOURS.length;h++){
+    html+='<tr><td>'+HOURS[h]+'</td>';
+    for(let d=0;d<5;d++){
+      const cell=grid?.[h]?.[d]||{kl:'',fa:''};
+      html+='<td><button class="sp-cell-btn" onclick="openSPCell('+h+','+d+')">';
+      if(cell.kl||cell.fa){
+        html+='<span class="sp-kl-tag">'+esc(cell.kl||'')+'</span><span class="sp-fa-tag">'+esc(cell.fa||'')+'</span>';
+      } else {
+        html+='<span class="sp-empty-tag">+ eintragen</span>';
+      }
+      html+='</button></td>';
+    }
+    html+='</tr>';
+  }
+  html+='</tbody></table></div>';
+  html+='<div style="margin-top:12px;font-size:12px;color:var(--tx3)"><i class="ti ti-info-circle" aria-hidden="true"></i> <strong>Gültig ab:</strong> Trägst du ein Datum ein, wechselt der Wochenplan automatisch auf diesen Plan – kein manuelles Umschalten mehr. Leer lassen = manuell wählen. <strong>A/B-Woche</strong> bleibt immer manuell.</div>';
+  c.innerHTML=html;
+}
+
+function setSPplan(i){S.spPlan=i;render()}
+function setSPab(v){S.spAB=v;render()}
+function addPlan(){S.stundenplaene.push({name:`Plan ${S.stundenplaene.length+1}`,A:buildDefaultPlans(1)[0].A,B:buildDefaultPlans(1)[0].B});S.spPlan=S.stundenplaene.length-1;saveAll();render()}
+function deletePlan(){if(S.stundenplaene.length<=1)return;S.stundenplaene.splice(S.spPlan,1);S.spPlan=0;saveAll();render()}
+function renamePlan(v){S.stundenplaene[S.spPlan].name=v;saveAll();}
+function setPlanValidFrom(v){
+  S.stundenplaene[S.spPlan].validFrom=v;
+  saveAll();
+  toast(v?'Gültig ab '+v+' gespeichert':'Datum entfernt – Plan wird manuell gewählt');
+}
+function openSPCell(h,d){S.modal={type:'spcell',h,d};renderModal()}
+
+/* ===== IMPORT ===== */
+function renderFerien(c,ta){
+  const sj=curSJ();
+  const ferien=getFerien(sj);
+  ta.innerHTML='<button class="btn pri" onclick="addFerienBlock()"><i class="ti ti-plus" aria-hidden="true"></i>Hinzufügen</button>'
+    +'<button class="btn" onclick="importFeiertageSH()"><i class="ti ti-calendar-star" aria-hidden="true"></i>Feiertage SH importieren</button>'
+    +'<button class="btn" onclick="exportFerien()"><i class="ti ti-download" aria-hidden="true"></i>Exportieren</button>'
+    +'<button class="btn" onclick="document.getElementById(\'fer-imp\').click()"><i class="ti ti-upload" aria-hidden="true"></i>Importieren<input type="file" id="fer-imp" accept=".json" style="display:none" onchange="importFerien(this)"></button>';
+  const rows=ferien.map((f,i)=>'<div class="srow">'
+    +'<div style="display:flex;align-items:center;gap:8px;flex:1;flex-wrap:wrap">'
+    +'<input type="text" value="'+esc(f.l)+'" onchange="updateFerie('+i+',\'l\',this.value)" placeholder="Name" style="width:120px;padding:4px 8px;font-size:12px;background:var(--sur2);border:.5px solid var(--borm);border-radius:5px;color:var(--tx);font-family:inherit">'
+    +'<input type="date" value="'+f.s+'" onchange="updateFerie('+i+',\'s\',this.value)" style="padding:4px 8px;font-size:12px;background:var(--sur2);border:.5px solid var(--borm);border-radius:5px;color:var(--tx);font-family:inherit">'
+    +'<span style="color:var(--tx3);font-size:12px">–</span>'
+    +'<input type="date" value="'+f.e+'" onchange="updateFerie('+i+',\'e\',this.value)" style="padding:4px 8px;font-size:12px;background:var(--sur2);border:.5px solid var(--borm);border-radius:5px;color:var(--tx);font-family:inherit">'
+    +'</div><button class="btn dan sml" onclick="deleteFerie('+i+')"><i class="ti ti-trash"></i></button></div>'
+  ).join('');
+  const sjBtns=['2025/26','2026/27','2027/28'].map(s=>'<button class="btn '+(s===sj?'pri':'')+'" onclick="setSJ(\''+s+'\')" style="margin-right:4px">'+s+'</button>').join('');
+  c.innerHTML='<div class="card" style="max-width:680px">'
+    +'<div class="ctit"><i class="ti ti-sun" aria-hidden="true"></i>Ferien – Schuljahr '+sj+'</div>'
+    +'<p style="font-size:12px;color:var(--tx2);margin-bottom:14px">Ferienblöcke eintragen, ändern oder löschen. Werden automatisch grün hinterlegt.</p>'
+    +(rows||'<div style="text-align:center;padding:20px;color:var(--tx3)">Noch keine Ferien eingetragen</div>')
+    +'</div>'
+    +'<div class="card" style="max-width:680px;margin-top:0">'
+    +'<div class="ctit"><i class="ti ti-calendar" aria-hidden="true"></i>Schuljahr wechseln</div>'
+    +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">'+sjBtns+'</div>'
+    +'<p style="font-size:12px;color:var(--tx2);line-height:1.7">Aktuell: <strong>'+sj+'</strong>. Vor dem Wechsel altes Schuljahr über Archivieren sichern.</p>'
+    +'</div>';
+}
+function updateFerie(i,key,val){const f=getFerien(curSJ());f[i][key]=val;saveFerien(curSJ(),f);toast('Gespeichert');}
+function deleteFerie(i){if(!confirm('Ferienblock löschen?'))return;const f=getFerien(curSJ());f.splice(i,1);saveFerien(curSJ(),f);render();}
+function addFerienBlock(){const f=getFerien(curSJ());f.push({s:todayStr(),e:todayStr(),l:'Ferien'});saveFerien(curSJ(),f);render();}
+function exportFerien(){const f=getFerien(curSJ());const b=new Blob([JSON.stringify({schuljahr:curSJ(),ferien:f},null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='ferien-'+curSJ().replace('/','_')+'.json';a.click();toast('Ferien exportiert');}
+function importFerien(input){const f=input.files[0];if(!f)return;const r=new FileReader();r.onload=e=>{try{const d=JSON.parse(e.target.result);if(d.ferien&&Array.isArray(d.ferien)){saveFerien(curSJ(),d.ferien);toast(d.ferien.length+' Ferienblöcke importiert');render();}else{alert('Ungültiges Format');}}catch{alert('Fehler beim Lesen.');}};r.readAsText(f);}
+function renderImport(c){
+  c.innerHTML=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;max-width:860px">
+    <div class="card"><div class="ctit"><i class="ti ti-file-text" aria-hidden="true"></i>Schülerliste aus WebUntis</div>
+      <p style="font-size:12px;color:var(--tx2);margin-bottom:12px">Format: <code style="background:var(--sur2);padding:2px 5px;border-radius:4px;font-size:11px">Nachname;Vorname;Klasse</code></p>
+      <div class="dz" onclick="document.getElementById('csv-f').click()"><i class="ti ti-upload" aria-hidden="true"></i>CSV hochladen<input type="file" id="csv-f" accept=".csv,.txt" style="display:none" onchange="importFile(this)"></div>
+      <textarea id="csv-tx" style="width:100%;min-height:80px;margin-top:10px;font-size:12px;font-family:monospace;background:var(--sur2);border:.5px solid var(--borm);border-radius:6px;padding:8px;color:var(--tx)" placeholder="Müller;Anna;11a BIN&#10;Schmidt;Ben;11a BIN"></textarea>
+      <button class="btn pri" style="margin-top:8px;width:100%;justify-content:center" onclick="importText()"><i class="ti ti-check" aria-hidden="true"></i>Importieren</button>
+    </div>
+    <div class="card"><div class="ctit"><i class="ti ti-brand-windows" aria-hidden="true"></i>Outlook verbinden</div>
+      <p style="font-size:12px;color:var(--tx2);margin-bottom:12px">Termine automatisch aus Outlook übernehmen via Microsoft Graph.</p>
+      <div class="field"><label>Client-ID</label><input type="text" id="ms-cid" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" value="${localStorage.getItem('ms_cid')||''}"></div>
+      <div class="field"><label>Tenant-ID</label><input type="text" id="ms-tid" placeholder="common" value="${localStorage.getItem('ms_tid')||'common'}"></div>
+      <button class="btn pri" style="width:100%;justify-content:center" onclick="connectOutlook()"><i class="ti ti-brand-windows" aria-hidden="true"></i>Verbinden</button>
+    </div>
+  </div>`;
+}
+
+/* ===== EINSTELLUNGEN ===== */
+function renderEinstellungen(c){
+  c.innerHTML=`<div style="max-width:460px">
+    <div class="card"><div class="ctit"><i class="ti ti-user" aria-hidden="true"></i>Profil</div>
+      <div class="field"><label>Name</label><input type="text" id="p-n" value="${esc(localStorage.getItem('pref_name')||'')}"></div>
+      <div class="field"><label>Schule</label><input type="text" id="p-s" value="${esc(localStorage.getItem('pref_schule')||'BBZ RD-ECK')}"></div>
+      <div class="field"><label>Fächer</label><input type="text" id="p-f" value="${esc(localStorage.getItem('pref_faecher')||'')}"></div>
+      <button class="btn pri" onclick="savePrefs()"><i class="ti ti-check" aria-hidden="true"></i>Speichern</button>
+    </div>
+    <div class="card" style="margin-top:14px"><div class="ctit"><i class="ti ti-database" aria-hidden="true"></i>Daten</div>
+      <div class="srow"><span>Gespeicherte Stunden</span><span style="font-weight:600">${Object.keys(S.lessons).length}</span></div>
+      <div class="srow"><span>Klassen</span><span style="font-weight:600">${S.klassen.length}</span></div>
+      <div class="srow"><span>Klassenbuch-Einträge</span><span style="font-weight:600">${Object.keys(S.kbData).length}</span></div>
+      <div class="srow"><span>Halbjahreseinträge</span><span style="font-weight:600">${Object.keys(S.hjEntries).length}</span></div>
+      <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+        <button class="btn" onclick="exportData()"><i class="ti ti-download" aria-hidden="true"></i>Export (JSON)</button>
+        <button class="btn" onclick="document.getElementById('json-f').click()"><i class="ti ti-upload" aria-hidden="true"></i>Import<input type="file" id="json-f" accept=".json" style="display:none" onchange="loadJSON(this)"></button>
+        <button class="btn dan" onclick="clearAll()"><i class="ti ti-trash" aria-hidden="true"></i>Alles löschen</button>
+      </div>
+    </div>
+    <div class="card" style="margin-top:14px"><div class="ctit"><i class="ti ti-device-mobile" aria-hidden="true"></i>App installieren</div>
+      <p style="font-size:13px;color:var(--tx2);line-height:1.7"><strong>Chrome/Edge:</strong> Adressleiste → Installieren-Symbol<br><strong>iPhone/Safari:</strong> Teilen → Zum Home-Bildschirm<br><strong>Android/Chrome:</strong> Menü → App installieren</p>
+    </div>
+  </div>`;
+}
+
+/* ===== MODAL ===== */
+function renderModal(){
+  document.getElementById('movl')?.remove();
+  if(!S.modal)return;
+  const ov=document.createElement('div');
+  ov.className='movl';ov.id='movl';
+  ov.addEventListener('click',e=>{if(e.target===ov)closeModal()});
+
+  let html='';
+  const{type}=S.modal;
+
+  if(type==='lesson'){
+    const l=S.modal.lesson||{};
+    const isEdit=S.modal.cellKey&&S.lessons[S.modal.cellKey];
+    const ko=S.klassen.map(k=>`<option value="${esc(k.name)}" ${l.klasse===k.name?'selected':''}>${esc(k.name)}</option>`).join('');
+    const chips=['unterricht','meeting','frei','notiz'].map(t=>`<button class="tchip ${(l.type||'unterricht')===t?'active':''}" onclick="selType('${t}')">${t.charAt(0).toUpperCase()+t.slice(1)}</button>`).join('');
+    html=`<div class="modal"><div class="mhd"><div class="mtit">${isEdit?'Bearbeiten':'Neuer Eintrag'}</div><button class="btn ico" onclick="closeModal()"><i class="ti ti-x"></i></button></div>
+      ${!S.modal.cellKey?`<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+        <div class="field"><label>Tag</label><select id="m-d">${DAYS.map((d,i)=>`<option value="${i}" ${(S.modal.day||0)==i?'selected':''}>${d}</option>`).join('')}</select></div>
+        <div class="field"><label>Stunde</label><select id="m-h">${HOURS.map((h,i)=>`<option value="${i}" ${(S.modal.hour||0)==i?'selected':''}>${h}</option>`).join('')}</select></div>
+      </div>`:''}
+      <div style="margin-bottom:12px"><div style="font-size:12px;color:var(--tx2);font-weight:500;margin-bottom:6px">Typ</div><div class="tchips">${chips}</div></div>
+      <div class="field"><label>Klasse</label>
+        <select id="m-kl"><option value="">– leer –</option>${ko}<option value="__c">Eigene Eingabe...</option></select>
+        <input type="text" id="m-clx" placeholder="Freitext..." value="${!S.klassen.find(k=>k.name===l.klasse)&&l.klasse?esc(l.klasse):''}" style="margin-top:6px;${!S.klassen.find(k=>k.name===l.klasse)&&l.klasse?'':'display:none'}">
+      </div>
+      <div class="field"><label>Notiz / Inhalt</label><textarea id="m-no">${esc(l.notiz||'')}</textarea></div>
+      <div class="field"><label>Fortschritt / Seite</label><input type="text" id="m-pr" value="${esc(l.fortschritt||'')}" placeholder="S. 42, Kap. 3..."></div>
+      <div class="field"><label style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--tx2);font-weight:500"><i class="ti ti-link" style="font-size:12px" aria-hidden="true"></i>Nextcloud-Link</label><input type="text" id="m-ncurl" placeholder="https://bbz-cloud.de/nextcloud/s/..."><input type="text" id="m-nclbl" placeholder="Bezeichnung z.B. AB Kapitel 3" style="margin-top:5px"></div>
+      <div class="mfoot">${isEdit?`<button class="btn dan" onclick="delLesson()"><i class="ti ti-trash"></i></button>`:''}
+        <button class="btn" onclick="closeModal()">Abbrechen</button>
+        <button class="btn pri" onclick="saveLesson()"><i class="ti ti-check"></i>Speichern</button>
+      </div></div>`;
+
+  } else if(type==='hj'){
+    const entry=S.hjEntries[S.modal.ds]||{type:'termin',text:''};
+    const[y,mo,d]=S.modal.ds.split('-');
+    const lbl=`${parseInt(d)}. ${MONTHS[parseInt(mo)-1]} ${y}`;
+    const chips=['konferenz','deadline','termin','frei','sonstiges'].map(t=>`<button class="tchip ${(entry.type||'termin')===t?'active':''}" onclick="selHJType('${t}')">${t.charAt(0).toUpperCase()+t.slice(1)}</button>`).join('');
+    html=`<div class="modal"><div class="mhd"><div class="mtit">${S.hjEntries[S.modal.ds]?'Bearbeiten':'Neuer Termin'} · ${lbl}</div><button class="btn ico" onclick="closeModal()"><i class="ti ti-x"></i></button></div>
+      <div style="margin-bottom:12px"><div style="font-size:12px;color:var(--tx2);font-weight:500;margin-bottom:6px">Typ</div><div class="tchips">${chips}</div></div>
+      <div class="field"><label>Bezeichnung</label><input type="text" id="hj-tx" value="${esc(entry.text||'')}" placeholder="z.B. Zeugniskonferenz, Notenabgabe..."></div>
+      <div class="mfoot">${S.hjEntries[S.modal.ds]?`<button class="btn dan" onclick="delHJEntry()"><i class="ti ti-trash"></i></button>`:''}
+        <button class="btn" onclick="closeModal()">Abbrechen</button>
+        <button class="btn pri" onclick="saveHJEntry()"><i class="ti ti-check"></i>Speichern</button>
+      </div></div>`;
+
+  } else if(type==='kbnote'){
+    const{sid,date}=S.modal;
+    const kl=S.klassen.find(k=>k.id===S.selKlasse);
+    const s=kl?.schueler.find(x=>x.id===sid);
+    const e=kbGet(S.selKlasse,sid,date);
+    const[y,mo,d]=date.split('-');
+    const dlbl=`${parseInt(d)}. ${MONTHS[parseInt(mo)-1]} ${y}`;
+    const chips=KB_COLORS.map(c=>`<button class="colbtn c-${c} ${(e.color||'leer')===c?'active':''}" onclick="selKbColor('${c}')"><div class="cb-dot"></div><span>${KB_LABELS[c]}</span></button>`).join('');
+    html=`<div class="modal"><div class="mhd"><div class="mtit">${esc(s?.name||'')} · ${dlbl}</div><button class="btn ico" onclick="closeModal()"><i class="ti ti-x"></i></button></div>
+      <div class="colrow">${chips}</div>
+      <div class="field"><label>Anmerkung (für Gespräche / Ausdruck)</label>
+        <textarea id="kb-note-ta" placeholder="z.B. Meldet sich selten, schriftlich gut. Elterngespräch geplant...">${esc(e.note||'')}</textarea>
+      </div>
+      <div class="mfoot">
+        <button class="btn dan sml" onclick="clearKbEntry()"><i class="ti ti-trash"></i></button>
+        <button class="btn" onclick="closeModal()">Abbrechen</button>
+        <button class="btn pri" onclick="saveKbNote()"><i class="ti ti-check"></i>Speichern</button>
+      </div></div>`;
+
+  } else if(type==='spcell'){
+    const plan=S.stundenplaene[S.spPlan]||S.stundenplaene[0];
+    const grid=plan[S.spAB]||plan.A;
+    const cell=grid?.[S.modal.h]?.[S.modal.d]||{kl:'',fa:''};
+    const ko=S.klassen.map(k=>`<option value="${esc(k.name)}" ${cell.kl===k.name?'selected':''}>${esc(k.name)}</option>`).join('');
+    html=`<div class="modal"><div class="mhd"><div class="mtit">Stunde · ${DAYS[S.modal.d]}, ${HOURS[S.modal.h]}</div><button class="btn ico" onclick="closeModal()"><i class="ti ti-x"></i></button></div>
+      <div class="field"><label>Klasse</label><select id="sp-kl"><option value="">– leer –</option>${ko}</select></div>
+      <div class="field"><label>Fach</label><input type="text" id="sp-fa" value="${esc(cell.fa||'')}" placeholder="z.B. English, BIN..."></div>
+      <div class="mfoot"><button class="btn dan sml" onclick="clearSPCell()"><i class="ti ti-trash"></i></button><button class="btn" onclick="closeModal()">Abbrechen</button><button class="btn pri" onclick="saveSPCell()"><i class="ti ti-check"></i>Speichern</button></div>
+    </div>`;
+
+  } else if(type==='addKlasse'){
+    html=`<div class="modal"><div class="mhd"><div class="mtit">Neue Klasse</div><button class="btn ico" onclick="closeModal()"><i class="ti ti-x"></i></button></div>
+      <div class="field"><label>Klasse</label><input type="text" id="nk-n" placeholder="11a BIN"></div>
+      <div class="field"><label>Fach</label><input type="text" id="nk-f" placeholder="English"></div>
+      <div class="mfoot"><button class="btn" onclick="closeModal()">Abbrechen</button><button class="btn pri" onclick="saveKlasse()"><i class="ti ti-check"></i>Erstellen</button></div>
+    </div>`;
+  } else if(type==='editKlasse'){
+    const kl=S.klassen.find(k=>k.id===S.modal.id)||{};
+    html=`<div class="modal"><div class="mhd"><div class="mtit">Klasse bearbeiten</div><button class="btn ico" onclick="closeModal()"><i class="ti ti-x"></i></button></div>
+      <div class="field"><label>Klasse</label><input type="text" id="ek-n" value="${esc(kl.name||'')}" placeholder="11a BIN"></div>
+      <div class="field"><label>Fach</label><input type="text" id="ek-f" value="${esc(kl.fach||'')}" placeholder="English"></div>
+      <div class="mfoot">
+        <button class="btn dan" onclick="deleteKlasse()"><i class="ti ti-trash"></i>Löschen</button>
+        <button class="btn" onclick="closeModal()">Abbrechen</button>
+        <button class="btn pri" onclick="saveKlasseEdit()"><i class="ti ti-check"></i>Speichern</button>
+      </div>
+    </div>`;
+  } else if(type==='addSuS'){
+    const kl=S.klassen.find(k=>k.id===S.selKlasse)||{};
+    html=`<div class="modal"><div class="mhd"><div class="mtit">Schüler/in hinzufügen – ${esc(kl.name||'')}</div><button class="btn ico" onclick="closeModal()"><i class="ti ti-x"></i></button></div>
+      <div class="field"><label>Name (Nachname, Vorname)</label><input type="text" id="ns-n" placeholder="Müller, Anna"></div>
+      <div class="mfoot"><button class="btn" onclick="closeModal()">Abbrechen</button><button class="btn pri" onclick="saveSuS()"><i class="ti ti-check"></i>Hinzufügen</button></div>
+    </div>`;
+  }
+
+  ov.innerHTML=html;
+  document.body.appendChild(ov);
+  const sel=ov.querySelector('#m-kl');
+  if(sel)sel.addEventListener('change',()=>{const cx=ov.querySelector('#m-clx');if(cx)cx.style.display=sel.value==='__c'?'':'none'});
+  if(S.modal?.type==='lesson'&&S.modal?.cellKey){
+    const lnk=S.lessonLinks[S.modal.cellKey]||{};
+    const urlEl=ov.querySelector('#m-ncurl');if(urlEl)urlEl.value=lnk.url||'';
+    const lblEl=ov.querySelector('#m-nclbl');if(lblEl)lblEl.value=lnk.label||'';
+  }
+  setTimeout(()=>ov.querySelector('input[type=text],textarea')?.focus(),60);
+}
+
+/* ===== MODAL ACTIONS ===== */
+function openAddLesson(){S.modal={type:'lesson',lesson:{type:'unterricht'}};renderModal()}
+function openAddLessonAt(key,kl,fa){const p=key.split('-');S.modal={type:'lesson',cellKey:key,day:parseInt(p[2]),hour:parseInt(p[3]),lesson:{type:'unterricht',klasse:kl}};renderModal()}
+function openEditLesson(e,key){e.stopPropagation();S.modal={type:'lesson',cellKey:key,lesson:{...S.lessons[key]}};renderModal()}
+function selType(t){if(!S.modal)return;S.modal.lesson=S.modal.lesson||{};S.modal.lesson.type=t;document.querySelectorAll('.tchip').forEach(c=>c.classList.toggle('active',c.textContent.toLowerCase()===t))}
+function saveLesson(){
+  const ov=document.getElementById('movl');if(!ov)return;
+  const type=ov.querySelector('.tchip.active')?.textContent.toLowerCase()||'unterricht';
+  const sel=ov.querySelector('#m-kl');const clx=ov.querySelector('#m-clx');
+  const klasse=sel?(sel.value==='__c'?(clx?.value||''):sel.value):'';
+  const notiz=ov.querySelector('#m-no')?.value||'';
+  const fortschritt=ov.querySelector('#m-pr')?.value||'';
+  let key=S.modal.cellKey;
+  if(!key){const day=ov.querySelector('#m-d')?.value||0;const hour=ov.querySelector('#m-h')?.value||0;key=`${S.year}-${S.week}-${day}-${hour}`}
+  S.lessons[key]={type,klasse,notiz,fortschritt};
+  const ncUrl=(ov.querySelector('#m-ncurl')?.value||'').trim();
+  const ncLbl=(ov.querySelector('#m-nclbl')?.value||'').trim();
+  if(ncUrl){S.lessonLinks[key]={url:ncUrl,label:ncLbl||'AB'};}
+  else{delete S.lessonLinks[key];}
+  saveAll();closeModal();toast('Gespeichert');render()}
+function delLesson(){if(!S.modal?.cellKey)return;delete S.lessons[S.modal.cellKey];delete S.lessonLinks[S.modal.cellKey];saveAll();closeModal();toast('Gelöscht');render()}
+function saveHJEntry(){const tx=document.getElementById('hj-tx')?.value.trim()||'';if(!tx)return;const type=document.querySelector('.tchip.active')?.textContent.toLowerCase()||'termin';S.hjEntries[S.modal.ds]={type,text:tx};saveAll();closeModal();toast('Gespeichert');render()}
+function selHJType(t){document.querySelectorAll('.tchip').forEach(c=>c.classList.toggle('active',c.textContent.toLowerCase()===t))}
+function delHJEntry(){delete S.hjEntries[S.modal.ds];saveAll();closeModal();render()}
+function selKbColor(c){S.modal._kbColor=c;document.querySelectorAll('.colbtn').forEach(b=>b.classList.toggle('active',b.classList.contains('c-'+c)))}
+function saveKbNote(){
+  const{sid,date}=S.modal;
+  const e=kbGet(S.selKlasse,sid,date);
+  e.color=S.modal._kbColor||e.color;
+  e.note=document.getElementById('kb-note-ta')?.value||'';
+  kbSet(S.selKlasse,sid,date,e);closeModal();toast('Gespeichert');render()}
+function clearKbEntry(){const{sid,date}=S.modal;kbSet(S.selKlasse,sid,date,{color:'leer',note:''});closeModal();render()}
+function saveSPCell(){
+  const kl=document.getElementById('sp-kl')?.value||'';
+  const fa=document.getElementById('sp-fa')?.value||'';
+  const plan=S.stundenplaene[S.spPlan]||S.stundenplaene[0];
+  const grid=plan[S.spAB]||plan.A;
+  if(!grid[S.modal.h])grid[S.modal.h]=Array(5).fill(null).map(()=>({kl:'',fa:''}));
+  grid[S.modal.h][S.modal.d]={kl,fa};saveAll();closeModal();toast('Gespeichert');render()}
+function clearSPCell(){const plan=S.stundenplaene[S.spPlan]||S.stundenplaene[0];const grid=plan[S.spAB]||plan.A;if(grid?.[S.modal.h])grid[S.modal.h][S.modal.d]={kl:'',fa:''};saveAll();closeModal();render()}
+function openAddKlasse(){S.modal={type:'addKlasse'};renderModal()}
+function openEditKlasse(id){
+  const kl=S.klassen.find(k=>k.id===id);
+  if(!kl)return;
+  S.modal={type:'editKlasse',id};
+  renderModal();
+}
+function saveKlasse(){const n=document.getElementById('nk-n')?.value.trim()||'';const f=document.getElementById('nk-f')?.value.trim()||'';if(!n)return;const id='k'+Date.now();S.klassen.push({id,name:n,fach:f,schueler:[]});S.selKlasse=id;saveAll();closeModal();toast('Klasse "'+n+'" erstellt');render()}
+function saveKlasseEdit(){
+  const n=document.getElementById('ek-n')?.value.trim()||'';
+  const f=document.getElementById('ek-f')?.value.trim()||'';
+  if(!n){alert('Bitte einen Namen eingeben.');return;}
+  const kl=S.klassen.find(k=>k.id===S.modal.id);
+  if(!kl)return;
+  kl.name=n;kl.fach=f;
+  saveAll();closeModal();toast('Gespeichert');render();
+}
+function deleteKlasse(){
+  const kl=S.klassen.find(k=>k.id===S.modal.id);
+  if(!kl)return;
+  if(!confirm('Klasse "'+kl.name+'" und alle Mitarbeitsdaten löschen?\nDies kann nicht rückgängig gemacht werden.'))return;
+  // Remove KB data for this class
+  Object.keys(S.kbData).forEach(key=>{if(key.startsWith(kl.id+'||'))delete S.kbData[key];});
+  S.klassen=S.klassen.filter(k=>k.id!==S.modal.id);
+  if(S.selKlasse===S.modal.id)S.selKlasse=S.klassen[0]?.id||null;
+  saveAll();closeModal();toast('Klasse gelöscht');render();
+}
+function closeModal(){S.modal=null;document.getElementById('movl')?.remove()}
+
+/* ===== IMPORT/EXPORT ===== */
+function importFile(i){const f=i.files[0];if(!f)return;const r=new FileReader();r.onload=e=>processCSV(e.target.result);r.readAsText(f,'UTF-8')}
+function importText(){processCSV(document.getElementById('csv-tx')?.value||'')}
+function processCSV(text){
+  const lines=text.trim().split('\n').filter(Boolean);const bk={};
+  lines.forEach(l=>{const p=l.split(/[;,]/).map(s=>s.trim());if(p.length<2)return;const nm=p[0]+(p[1]?', '+p[1]:'');const kl=p[2]||'Unbekannt';if(!bk[kl])bk[kl]=[];bk[kl].push({id:'s'+Date.now()+Math.random().toString(36).slice(2),name:nm})});
+  let nk=0,tot=0;
+  Object.entries(bk).forEach(([kn,sus])=>{let k=S.klassen.find(x=>x.name===kn);if(!k){k={id:'k'+Date.now(),name:kn,fach:'',schueler:[]};S.klassen.push(k);nk++}k.schueler=[...k.schueler,...sus];tot+=sus.length});
+  saveAll();toast(`${tot} SuS importiert, ${nk} neue Klasse(n)`);showView('klassen')}
+function connectOutlook(){const cid=document.getElementById('ms-cid')?.value.trim()||'';const tid=document.getElementById('ms-tid')?.value.trim()||'common';if(!cid){alert('Client-ID fehlt');return}localStorage.setItem('ms_cid',cid);localStorage.setItem('ms_tid',tid);const sc=encodeURIComponent('https://graph.microsoft.com/Calendars.Read');const rd=encodeURIComponent(window.location.href.split('?')[0]);window.open(`https://login.microsoftonline.com/${tid}/oauth2/v2.0/authorize?client_id=${cid}&response_type=token&redirect_uri=${rd}&scope=${sc}&response_mode=fragment`,'_blank','width=520,height=620')}
+function savePrefs(){localStorage.setItem('pref_name',document.getElementById('p-n')?.value||'');localStorage.setItem('pref_schule',document.getElementById('p-s')?.value||'BBZ RD-ECK');localStorage.setItem('pref_faecher',document.getElementById('p-f')?.value||'');const s=localStorage.getItem('pref_schule');if(s)document.getElementById('school-lbl').textContent=s;toast('Gespeichert')}
+function exportData(){const d={lessons:S.lessons,klassen:S.klassen,hjEntries:S.hjEntries,stundenplaene:S.stundenplaene,weekConfig:S.weekConfig,kbData:S.kbData,lessonLinks:S.lessonLinks,exported:new Date().toISOString()};const b=new Blob([JSON.stringify(d,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=`lehrerplaner-${new Date().toISOString().split('T')[0]}.json`;a.click();toast('Export gestartet')}
+function loadJSON(i){const f=i.files[0];if(!f)return;const r=new FileReader();r.onload=e=>{try{const d=JSON.parse(e.target.result);if(d.lessons)S.lessons=d.lessons;if(d.klassen)S.klassen=d.klassen;if(d.hjEntries)S.hjEntries=d.hjEntries;if(d.stundenplaene)S.stundenplaene=d.stundenplaene;if(d.weekConfig)S.weekConfig=d.weekConfig;if(d.kbData)S.kbData=d.kbData;if(d.lessonLinks)S.lessonLinks=d.lessonLinks;saveAll();toast('Wiederhergestellt');render()}catch{alert('Fehler beim Lesen.')}};r.readAsText(f)}
+function clearAll(){if(!confirm('Wirklich alle Daten löschen?'))return;S.lessons={};S.hjEntries={};S.kbData={};saveAll();toast('Gelöscht');render()}
+
+if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
+if(window.location.hash?.includes('access_token')){const p=new URLSearchParams(window.location.hash.slice(1));const tk=p.get('access_token');if(tk){localStorage.setItem('ms_token',tk);window.location.hash='';toast('Outlook verbunden')}}
+
+const ps=localStorage.getItem('pref_schule');
+if(ps)document.getElementById('school-lbl').textContent=ps;
+(()=>{const now=new Date();if(now.getMonth()===7){const key='lp_aug_'+now.getFullYear();if(!localStorage.getItem(key)){localStorage.setItem(key,'1');setTimeout(()=>{if(confirm('Neues Schuljahr – Klassenlisten aktualisieren?\nAltes Schuljahr zuerst unter Ferien archivieren.')){showView('ferien');}},800);}}})();
+render();
+</script>
+</body>
+</html>
