@@ -28,6 +28,12 @@ const config = {
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean),
+  // SameSite-Strategie fürs Cookie beim Embedding: 'none' (Default; für cross-site
+  // nötig, hängt aber an Dritt-Cookies -> Safari blockt) oder 'lax' (empfohlen, wenn
+  // same-site eingebettet wird, z. B. App + einbettende Seite auf derselben
+  // Basisdomain -> funktioniert in ALLEN Browsern inkl. Safari, besserer CSRF-Schutz).
+  // Nur wirksam, wenn embedAncestors gesetzt ist.
+  embedSameSite: (process.env.EMBED_SAMESITE || 'none').toLowerCase(),
   authMode: AUTH_MODE,
   devAllowedUsers: (process.env.DEV_ALLOWED_USERS || '')
     .split(',')
@@ -118,6 +124,12 @@ function validate() {
             '(erwartet z. B. "https://cloud.schule.de", ohne Pfad/Slash am Ende).'
         );
       }
+    }
+    if (!['none', 'lax'].includes(config.embedSameSite)) {
+      errors.push(
+        `EMBED_SAMESITE muss "none" oder "lax" sein (war "${config.embedSameSite}"). ` +
+          '"none" für cross-site-Embedding, "lax" für same-site (empfohlen, Safari-tauglich).'
+      );
     }
   }
 

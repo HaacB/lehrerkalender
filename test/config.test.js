@@ -100,3 +100,26 @@ test('validate: gültige EMBED_ANCESTORS mit SECURE_COOKIES wird akzeptiert', ()
   });
   assert.match(out, /ok/);
 });
+
+test('validate: ungültiges EMBED_SAMESITE scheitert', () => {
+  assert.throws(
+    () =>
+      runValidate({
+        AUTH_MODE: 'dev',
+        EMBED_ANCESTORS: 'https://cloud.schule.de',
+        SECURE_COOKIES: 'true',
+        EMBED_SAMESITE: 'strict',
+      }),
+    (e) => e.status === 1 && /EMBED_SAMESITE/.test(String(e.stderr))
+  );
+});
+
+test('validate: EMBED_SAMESITE=lax (same-site) wird akzeptiert', () => {
+  const out = runValidate({
+    AUTH_MODE: 'dev',
+    EMBED_ANCESTORS: 'https://cloud.schule.de',
+    SECURE_COOKIES: 'true',
+    EMBED_SAMESITE: 'lax',
+  });
+  assert.match(out, /ok/);
+});

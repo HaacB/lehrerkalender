@@ -99,11 +99,19 @@ Dann sendet die App das Session-Cookie als `SameSite=None; Secure` (erfordert
 `SECURE_COOKIES=true` + HTTPS) und erlaubt die Herkunft in `frame-ancestors`
 (`X-Frame-Options` wird abgeschaltet).
 
-> **Vorbehalt:** hängt an Dritt-Cookies (Chrome/Edge/Firefox aktuell ok, Safari
-> blockt sie). Zukunftssicherer ist, den Kalender unter eine Subdomain **derselben
-> Basisdomain** wie die einbettende Seite zu legen (z. B. Nextcloud
-> `cloud.bbz-rd-eck.de` + Kalender `…​.bbz-rd-eck.de`) — dann ist es *same-site*
-> und `EMBED_ANCESTORS` genügt für das Framing, ohne Dritt-Cookie-Abhängigkeit.
+> **Vorbehalt:** `EMBED_SAMESITE=none` (Default) hängt an Dritt-Cookies
+> (Chrome/Edge/Firefox aktuell ok, **Safari blockt sie**). Zukunftssicherer ist,
+> den Kalender unter eine Subdomain **derselben Basisdomain** wie die einbettende
+> Seite zu legen (z. B. Nextcloud `cloud.bbz-rd-eck.de` + Kalender
+> `lehrerkalender.bbz-rd-eck.de`) — dann ist es *same-site*.
+
+Nach dem Umzug auf eine gemeinsame Basisdomain zusätzlich **`EMBED_SAMESITE=lax`**
+setzen: dann funktioniert die Einbettung in **allen** Browsern inkl. Safari und das
+Cookie ist CSRF-sicherer.
+
+| Variable | Wert |
+|----------|------|
+| `EMBED_SAMESITE` | `none` (cross-site, Default) · `lax` (same-site, Safari-tauglich) |
 
 ---
 

@@ -63,10 +63,11 @@ app.use(
     saveUninitialized: false,
     cookie: {
       httpOnly: true,
-      // Cross-site-Embedding (EMBED_ANCESTORS) braucht SameSite=None, sonst wird
-      // das Session-Cookie im fremden iframe nie mitgeschickt. None erfordert Secure
-      // (per config.validate() erzwungen). Ohne Embedding bleibt Lax (CSRF-Schutz).
-      sameSite: config.embedAncestors.length ? 'none' : 'lax',
+      // Embedding: SameSite steuert EMBED_SAMESITE ('none' für cross-site nötig,
+      // 'lax' für same-site empfohlen -> Safari-tauglich, besserer CSRF-Schutz).
+      // 'none' erfordert Secure (per config.validate() erzwungen). Ohne Embedding
+      // bleibt es bei Lax.
+      sameSite: config.embedAncestors.length ? config.embedSameSite : 'lax',
       secure: config.secureCookies,
       maxAge: 1000 * 60 * 60 * 12, // 12h
     },
