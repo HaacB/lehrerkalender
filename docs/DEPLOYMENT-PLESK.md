@@ -85,6 +85,34 @@ doch vorhanden, außerhalb des Dokumentenstamms liegen).
 > **MASTER_KEY & DATA_DIR sichern!** Ohne den `MASTER_KEY` sind alle Nutzer-DBs
 > unwiederbringlich unlesbar. Backup von `DATA_DIR` **und** `MASTER_KEY` einplanen.
 
+### Optional: Einbettung per iframe (z. B. Nextcloud „Externe Seiten")
+
+Standardmäßig verhindert die App die Einbettung in fremde Seiten
+(`X-Frame-Options: SAMEORIGIN`, `SameSite=Lax`-Cookie). Soll der Kalender in eine
+Nextcloud auf **anderer** Domain eingebettet werden, die erlaubten Herkünfte setzen:
+
+| Variable | Beispiel |
+|----------|----------|
+| `EMBED_ANCESTORS` | `https://cloud.bbz-rd-eck.de` (kommagetrennt für mehrere) |
+
+Dann sendet die App das Session-Cookie als `SameSite=None; Secure` (erfordert
+`SECURE_COOKIES=true` + HTTPS) und erlaubt die Herkunft in `frame-ancestors`
+(`X-Frame-Options` wird abgeschaltet).
+
+> **Vorbehalt:** `EMBED_SAMESITE=none` (Default) hängt an Dritt-Cookies
+> (Chrome/Edge/Firefox aktuell ok, **Safari blockt sie**). Zukunftssicherer ist,
+> den Kalender unter eine Subdomain **derselben Basisdomain** wie die einbettende
+> Seite zu legen (z. B. Nextcloud `cloud.bbz-rd-eck.de` + Kalender
+> `lehrerkalender.bbz-rd-eck.de`) — dann ist es *same-site*.
+
+Nach dem Umzug auf eine gemeinsame Basisdomain zusätzlich **`EMBED_SAMESITE=lax`**
+setzen: dann funktioniert die Einbettung in **allen** Browsern inkl. Safari und das
+Cookie ist CSRF-sicherer.
+
+| Variable | Wert |
+|----------|------|
+| `EMBED_SAMESITE` | `none` (cross-site, Default) · `lax` (same-site, Safari-tauglich) |
+
 ---
 
 ## 3. Befehle nach jedem `git pull`

@@ -67,3 +67,59 @@ test('validate: unbekannter AUTH_MODE scheitert', () => {
     (e) => e.status === 1 && /AUTH_MODE/.test(String(e.stderr))
   );
 });
+
+test('validate: EMBED_ANCESTORS ohne SECURE_COOKIES scheitert', () => {
+  assert.throws(
+    () =>
+      runValidate({
+        AUTH_MODE: 'dev',
+        EMBED_ANCESTORS: 'https://cloud.schule.de',
+        SECURE_COOKIES: 'false',
+      }),
+    (e) => e.status === 1 && /SECURE_COOKIES/.test(String(e.stderr))
+  );
+});
+
+test('validate: EMBED_ANCESTORS mit ungültiger Origin scheitert', () => {
+  assert.throws(
+    () =>
+      runValidate({
+        AUTH_MODE: 'dev',
+        EMBED_ANCESTORS: 'https://cloud.schule.de/', // Slash am Ende ist ungültig
+        SECURE_COOKIES: 'true',
+      }),
+    (e) => e.status === 1 && /EMBED_ANCESTORS/.test(String(e.stderr))
+  );
+});
+
+test('validate: gültige EMBED_ANCESTORS mit SECURE_COOKIES wird akzeptiert', () => {
+  const out = runValidate({
+    AUTH_MODE: 'dev',
+    EMBED_ANCESTORS: 'https://cloud.schule.de,https://cloud2.schule.de',
+    SECURE_COOKIES: 'true',
+  });
+  assert.match(out, /ok/);
+});
+
+test('validate: ungültiges EMBED_SAMESITE scheitert', () => {
+  assert.throws(
+    () =>
+      runValidate({
+        AUTH_MODE: 'dev',
+        EMBED_ANCESTORS: 'https://cloud.schule.de',
+        SECURE_COOKIES: 'true',
+        EMBED_SAMESITE: 'strict',
+      }),
+    (e) => e.status === 1 && /EMBED_SAMESITE/.test(String(e.stderr))
+  );
+});
+
+test('validate: EMBED_SAMESITE=lax (same-site) wird akzeptiert', () => {
+  const out = runValidate({
+    AUTH_MODE: 'dev',
+    EMBED_ANCESTORS: 'https://cloud.schule.de',
+    SECURE_COOKIES: 'true',
+    EMBED_SAMESITE: 'lax',
+  });
+  assert.match(out, /ok/);
+});
