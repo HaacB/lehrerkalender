@@ -54,6 +54,7 @@ body{font-family:-apple-system,'Segoe UI',system-ui,sans-serif;background:var(--
 .topbar{background:var(--sur);border-bottom:.5px solid var(--bor);padding:11px 20px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;gap:12px}
 .tbtit{font-size:15px;font-weight:600}
 .tbact{display:flex;align-items:center;gap:8px;flex-shrink:0;flex-wrap:wrap}
+.tb-actions{display:flex;align-items:center;gap:8px;flex:1;min-width:0;flex-wrap:wrap;justify-content:flex-end}
 .content{flex:1;overflow-y:auto;padding:20px}
 .btn{background:transparent;border:.5px solid var(--borm);border-radius:var(--rads);padding:6px 12px;cursor:pointer;font-size:13px;color:var(--tx);display:inline-flex;align-items:center;gap:6px;transition:background .12s,transform .08s;font-family:inherit;white-space:nowrap}
 .btn:hover{background:var(--sur2)}
@@ -225,8 +226,40 @@ td.ec.tdc{outline:1.5px solid var(--acbor);outline-offset:-1px}
 .toast.show{opacity:1}
 ::-webkit-scrollbar{width:5px;height:5px}
 ::-webkit-scrollbar-thumb{background:var(--borm);border-radius:10px}
-@media print{.sidebar,.topbar,.tbact,.kl-tabs .btn,.kb-legend .btn{display:none!important}.app{display:block}.main{overflow:visible}.content{padding:8px}.kb-wrap{overflow:visible}}
-@media(max-width:700px){.sidebar{width:52px;min-width:52px}.logo-tx,.logo-sub,.ni span,.nsec{display:none}.ni{padding:10px;justify-content:center}.content{padding:12px}}
+/* ── Mobile-Komponenten: Bottom-Tab-Bar, Tageswechsler, "Mehr"-Sheet ── */
+.bottombar{display:none;position:fixed;bottom:0;left:0;right:0;z-index:150;background:var(--sur);border-top:.5px solid var(--bor);padding-bottom:env(safe-area-inset-bottom)}
+.bbtn{flex:1;background:transparent;border:none;color:var(--tx3);font-family:inherit;font-size:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:7px 2px;min-height:56px;cursor:pointer;transition:color .12s}
+.bbtn i{font-size:20px}
+.bbtn.active{color:var(--actx)}
+.more-backdrop{display:none;position:fixed;inset:0;z-index:155}
+.more-backdrop.show{display:block}
+.more-sheet{display:none;position:fixed;left:8px;right:8px;bottom:calc(60px + env(safe-area-inset-bottom));z-index:160;background:var(--sur);border:.5px solid var(--bor);border-radius:var(--rad);box-shadow:0 -6px 30px rgba(0,0,0,.18);padding:6px}
+.more-sheet.show{display:block}
+.more-item{display:flex;align-items:center;gap:10px;padding:12px 14px;font-size:14px;color:var(--tx);cursor:pointer;border-radius:8px;user-select:none}
+.more-item.active,.more-item:active{background:var(--sur2)}
+.more-item i{font-size:18px;color:var(--tx2)}
+.wg-daynav{display:none;align-items:center;gap:6px;margin-bottom:10px}
+.wg-daybtn{flex:1;min-width:40px;padding:8px 4px;border:.5px solid var(--borm);background:transparent;color:var(--tx2);border-radius:var(--rads);font-family:inherit;font-size:13px;cursor:pointer}
+.wg-daybtn.active{background:var(--acbg);border-color:var(--acbor);color:var(--actx);font-weight:600}
+
+@media print{.sidebar,.topbar,.tbact,.bottombar,.wg-daynav,.kl-tabs .btn,.kb-legend .btn{display:none!important}.app{display:block}.main{overflow:visible}.content{padding:8px}.kb-wrap{overflow:visible}}
+
+/* Tablet: schmale Icon-Rail-Sidebar */
+@media(max-width:900px){.sidebar{width:52px;min-width:52px}.logo-tx,.logo-sub,.ni span,.nsec{display:none}.ni{padding:10px;justify-content:center}.shead{padding:12px 8px}.content{padding:14px}}
+
+/* Phone: Sidebar aus, Bottom-Bar an, Einzeltag-Wochenplan, größere Touch-Ziele */
+@media(max-width:600px){
+  .sidebar{display:none}
+  .bottombar{display:flex}
+  .content{padding:12px 12px calc(72px + env(safe-area-inset-bottom))}
+  .topbar{padding:9px 12px;gap:6px;flex-direction:column;align-items:stretch}
+  .tb-actions{justify-content:flex-start}
+  .tbact{flex:1 1 100%;min-width:0}
+  .wg-daynav{display:flex}
+  .btn{min-height:40px}
+  .kltab,.kltab-edit,.segbtn{min-height:40px}
+  .wg-day{min-height:44px}
+}
 </style>
 </head>
 <body>
@@ -253,13 +286,26 @@ td.ec.tdc{outline:1.5px solid var(--acbor);outline-offset:-1px}
   <div class="main">
     <div class="topbar">
       <div class="tbtit" id="view-title">Wochenplan</div>
-      <div style="display:flex;align-items:center;gap:8px">
+      <div class="tb-actions">
         <div class="tbact" id="topbar-act"></div>
         <button class="btn ico" id="theme-toggle" onclick="cycleTheme()" title="Design wechseln"><i class="ti ti-device-desktop"></i></button>
       </div>
     </div>
     <div class="content" id="content"></div>
   </div>
+</div>
+<nav class="bottombar" id="bottombar">
+  <button class="bbtn" id="bb-woche" onclick="navFromBar('woche')"><i class="ti ti-calendar-week" aria-hidden="true"></i>Woche</button>
+  <button class="bbtn" id="bb-halbjahr" onclick="navFromBar('halbjahr')"><i class="ti ti-calendar-month" aria-hidden="true"></i>Halbjahr</button>
+  <button class="bbtn" id="bb-klassen" onclick="navFromBar('klassen')"><i class="ti ti-school" aria-hidden="true"></i>Klassen</button>
+  <button class="bbtn" id="bb-stundenplan" onclick="navFromBar('stundenplan')"><i class="ti ti-layout-grid" aria-hidden="true"></i>Plan</button>
+  <button class="bbtn" id="bb-more" onclick="toggleMoreSheet()"><i class="ti ti-dots" aria-hidden="true"></i>Mehr</button>
+</nav>
+<div class="more-backdrop" id="more-backdrop" onclick="closeMoreSheet()"></div>
+<div class="more-sheet" id="more-sheet">
+  <div class="more-item" onclick="navFromMore('ferien')"><i class="ti ti-sun" aria-hidden="true"></i>Ferien</div>
+  <div class="more-item" onclick="navFromMore('import')"><i class="ti ti-upload" aria-hidden="true"></i>Import</div>
+  <div class="more-item" onclick="navFromMore('einstellungen')"><i class="ti ti-settings" aria-hidden="true"></i>Einstellungen</div>
 </div>
 <div class="toast" id="toast"></div>
 
@@ -390,7 +436,7 @@ function todayStr(){const t=new Date();return t.getFullYear()+'-'+String(t.getMo
 
 const S={
   view:'woche',week:getWeekNum(new Date()),year:new Date().getFullYear(),
-  modal:null,hjNum:1,spPlan:0,spAB:'A',selKlasse:null,selFach:'',schuljahr:ld('lp_sj','2025/26'),
+  modal:null,hjNum:1,spPlan:0,spAB:'A',selKlasse:null,selFach:'',mobileDay:((new Date().getDay()+6)%7<5?(new Date().getDay()+6)%7:0),schuljahr:ld('lp_sj','2025/26'),
   lessons:ld('lp_lessons',{}),
   klassen:ld('lp_klassen',[
     {id:'k1',name:'11a BIN',fach:'Berufliche Informatik',schueler:[{id:'s1',name:'Müller, Anna'},{id:'s2',name:'Schmidt, Ben'},{id:'s3',name:'Koch, Clara'},{id:'s4',name:'Weber, David'},{id:'s5',name:'Braun, Elena'}]},
@@ -522,8 +568,32 @@ function showView(v,extra){
   document.querySelectorAll('.ni').forEach(n=>n.classList.remove('active'));
   const nav=document.getElementById('nav-'+v);
   if(nav)nav.classList.add('active');
+  // Bottom-Bar (Phone) synchron markieren: eigener Tab, sonst "Mehr".
+  document.querySelectorAll('.bbtn').forEach(b=>b.classList.remove('active'));
+  (document.getElementById('bb-'+v)||document.getElementById('bb-more'))?.classList.add('active');
   render();
 }
+
+/* ===== MOBILE (Bottom-Bar, "Mehr"-Sheet, Einzeltag-Wochenplan) ===== */
+function isPhone(){return window.matchMedia('(max-width:600px)').matches;}
+function navFromBar(v){closeMoreSheet();showView(v);}
+function navFromMore(v){closeMoreSheet();showView(v);}
+function toggleMoreSheet(){
+  const s=document.getElementById('more-sheet'),b=document.getElementById('more-backdrop');
+  const show=!s.classList.contains('show');
+  s.classList.toggle('show',show);b.classList.toggle('show',show);
+}
+function closeMoreSheet(){
+  document.getElementById('more-sheet')?.classList.remove('show');
+  document.getElementById('more-backdrop')?.classList.remove('show');
+}
+function setMobileDay(d){S.mobileDay=Math.max(0,Math.min(4,d));render();}
+// Bei Breakpoint-/Orientierungswechsel Wochenansicht neu rendern (Grid <-> Einzeltag).
+let __rzTimer;
+window.addEventListener('resize',function(){
+  clearTimeout(__rzTimer);
+  __rzTimer=setTimeout(function(){closeMoreSheet();if(S.view==='woche')render();},150);
+});
 
 function render(){
   const c=document.getElementById('content');
@@ -568,8 +638,10 @@ function renderWoche(c,ta){
     </select>
     <button class="btn pri" onclick="openAddLesson()"><i class="ti ti-plus" aria-hidden="true"></i>Eintrag</button>`;
 
+  // Auf dem Phone nur EIN Tag (S.mobileDay), sonst alle fünf.
+  const showDays=isPhone()?[Math.max(0,Math.min(4,S.mobileDay))]:[0,1,2,3,4];
   let headers=`<div class="wg-cor"><span style="font-size:9px;color:var(--tx3)">${ab}</span></div>`;
-  for(let d=0;d<5;d++){
+  for(const d of showDays){
     const date=new Date(monday);date.setDate(monday.getDate()+d);
     const hds=date.getFullYear()+'-'+String(date.getMonth()+1).padStart(2,'0')+'-'+String(date.getDate()).padStart(2,'0');
     const isToday=isThisWk&&d===todayIdx;
@@ -591,7 +663,7 @@ function renderWoche(c,ta){
   let rows='';
   for(let h=0;h<HOURS.length;h++){
     let cells=`<div class="wg-time">${HOURS[h]}</div>`;
-    for(let d=0;d<5;d++){
+    for(const d of showDays){
       const cellDate=new Date(monday);cellDate.setDate(monday.getDate()+d);
       const cellDateStr=cellDate.getFullYear()+'-'+String(cellDate.getMonth()+1).padStart(2,'0')+'-'+String(cellDate.getDate()).padStart(2,'0');
       const key=`${wk}-${d}-${h}`;
@@ -651,7 +723,20 @@ function renderWoche(c,ta){
     summary=`<div class="card"><div class="ctit"><i class="ti ti-notes" aria-hidden="true"></i>Wochennotizen</div>${srows}</div>`;
   }
 
-    c.innerHTML=`<div class="wkwrap"><div class="wkgrid">${headers}${rows}</div></div>${summary}`;
+    const dayNav=`<div class="wg-daynav">
+      <button class="btn ico" onclick="setMobileDay(${S.mobileDay-1})" title="Voriger Tag"><i class="ti ti-chevron-left"></i></button>
+      ${[0,1,2,3,4].map(d=>`<button class="wg-daybtn ${d===S.mobileDay?'active':''}" onclick="setMobileDay(${d})">${DAYS[d]}</button>`).join('')}
+      <button class="btn ico" onclick="setMobileDay(${S.mobileDay+1})" title="Nächster Tag"><i class="ti ti-chevron-right"></i></button>
+    </div>`;
+    c.innerHTML=`${dayNav}<div class="wkwrap"><div class="wkgrid" style="grid-template-columns:52px repeat(${showDays.length},1fr)">${headers}${rows}</div></div>${summary}`;
+    // Wischen zwischen Tagen (nur Phone/Einzeltag)
+    if(isPhone()){
+      const wrap=c.querySelector('.wkwrap');let sx=null;
+      if(wrap){
+        wrap.addEventListener('touchstart',e=>{sx=e.changedTouches[0].clientX;},{passive:true});
+        wrap.addEventListener('touchend',e=>{if(sx===null)return;const dx=e.changedTouches[0].clientX-sx;sx=null;if(Math.abs(dx)>40)setMobileDay(S.mobileDay+(dx<0?1:-1));},{passive:true});
+      }
+    }
 }
 
 function chgWk(d){S.week+=d;if(S.week<1){S.week=52;S.year--}if(S.week>52){S.week=1;S.year++}render()}
