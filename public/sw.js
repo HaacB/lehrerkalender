@@ -1,4 +1,4 @@
-const CACHE = 'lehrerkalender-v9';
+const CACHE = 'lehrerkalender-v10';
 const ASSETS = [
   '/',
   '/index.html',
@@ -25,20 +25,43 @@ self.addEventListener('activate', e => {
 });
 
 self.addEventListener('fetch', e => {
-  const url = new URL(e.request.url);
+  const req = e.request;
+  const url = new URL(req.url);
   // Nur eigene GET-Requests behandeln.
-  if (e.request.method !== 'GET' || url.origin !== self.location.origin) return;
+  if (req.method !== 'GET' || url.origin !== self.location.origin) return;
   // Dynamische/Auth-Endpunkte NIE aus dem Cache bedienen (immer frische Serverdaten).
   if (url.pathname.startsWith('/api') || url.pathname.startsWith('/auth')) return;
 
-  // Statische Assets: Cache-first mit Netz-Fallback (Offline-Fähigkeit der PWA).
+  // Oberfläche (HTML/Navigation): NETWORK-FIRST. Online kommt immer die neueste
+  // Version; nur bei fehlender Verbindung wird die zwischengespeicherte Seite
+  // genutzt. Das verhindert, dass nach einem Update noch die alte App erscheint.
+  const istSeite =
+    req.mode === 'navigate' || url.pathname === '/' || url.pathname.endsWith('.html');
+
+  if (istSeite) {
+    e.respondWith(
+      fetch(req)
+        .then(resp => {
+          if (resp && resp.status === 200 && resp.type === 'basic') {
+            const clone = resp.clone();
+            caches.open(CACHE).then(c => c.put(req, clone));
+          }
+          return resp;
+        })
+        .catch(() => caches.match(req).then(c => c || caches.match('/index.html')))
+    );
+    return;
+  }
+
+  // Übrige statische Assets (Icons, Schriften, CSS): CACHE-FIRST mit Netz-Fallback
+  // — die ändern sich selten und sollen die App schnell/offline-fähig halten.
   e.respondWith(
-    caches.match(e.request).then(cached => {
+    caches.match(req).then(cached => {
       if (cached) return cached;
-      return fetch(e.request).then(resp => {
+      return fetch(req).then(resp => {
         if (resp && resp.status === 200 && resp.type === 'basic') {
           const clone = resp.clone();
-          caches.open(CACHE).then(c => c.put(e.request, clone));
+          caches.open(CACHE).then(c => c.put(req, clone));
         }
         return resp;
       }).catch(() => cached);
