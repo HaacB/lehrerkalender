@@ -19,6 +19,15 @@ const config = {
   masterKey: process.env.MASTER_KEY || '',
   sessionSecret: process.env.SESSION_SECRET || '',
   secureCookies: bool(process.env.SECURE_COOKIES, false),
+  // Fremd-Herkünfte, die die App per <iframe> einbetten dürfen (z. B. Nextcloud
+  // "Externe Seiten"). Kommagetrennte Origins, z. B. "https://cloud.schule.de".
+  // Leer = kein cross-site-Embedding (Standard, sicherstes Verhalten: SameSite=Lax
+  // + X-Frame-Options SAMEORIGIN). Gesetzt -> SameSite=None;Secure-Cookie und
+  // frame-ancestors werden für diese Herkünfte geöffnet (siehe server/index.js).
+  embedAncestors: (process.env.EMBED_ANCESTORS || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean),
   authMode: AUTH_MODE,
   devAllowedUsers: (process.env.DEV_ALLOWED_USERS || '')
     .split(',')
@@ -91,6 +100,25 @@ function validate() {
     }
   } else if (config.authMode !== 'dev') {
     errors.push(`Unbekannter AUTH_MODE "${config.authMode}" (erlaubt: dev, ldap).`);
+  }
+
+  // Cross-site-Embedding verlangt SameSite=None -> nur mit Secure-Cookie zulässig
+  // (Browser lehnen SameSite=None ohne Secure ab). Origins grob prüfen.
+  if (config.embedAncestors.length) {
+    if (!config.secureCookies) {
+      errors.push(
+        'EMBED_ANCESTORS gesetzt, aber SECURE_COOKIES ist nicht true. ' +
+          'Cross-site-Embedding braucht SameSite=None;Secure -> SECURE_COOKIES=true setzen (HTTPS nötig).'
+      );
+    }
+    for (const o of config.embedAncestors) {
+      if (!/^https?:\/\/[^/]+$/.test(o)) {
+        errors.push(
+          `EMBED_ANCESTORS-Eintrag "${o}" ist keine gültige Origin ` +
+            '(erwartet z. B. "https://cloud.schule.de", ohne Pfad/Slash am Ende).'
+        );
+      }
+    }
   }
 
   if (errors.length) {

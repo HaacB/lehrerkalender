@@ -20,12 +20,18 @@ app.disable('x-powered-by');
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
 
 // ── Security-Header (CSP passend zur Inline-Struktur der App) ──────────
+// Für erlaubtes iframe-Embedding (EMBED_ANCESTORS) müssen fremde Herkünfte in
+// frame-ancestors stehen; X-Frame-Options (helmet-Default SAMEORIGIN) kann keine
+// fremde Herkunft erlauben und wird dann abgeschaltet (moderne Browser nutzen
+// ohnehin frame-ancestors).
 app.use(
   helmet({
+    frameguard: config.embedAncestors.length ? false : undefined,
     contentSecurityPolicy: {
       useDefaults: true,
       directives: {
         defaultSrc: ["'self'"],
+        frameAncestors: ["'self'", ...config.embedAncestors],
         // App nutzt Inline-<script> und onclick-Handler -> 'unsafe-inline' nötig.
         scriptSrc: ["'self'", "'unsafe-inline'"],
         // helmet setzt sonst script-src-attr 'none' -> blockiert die onclick=""-Handler.
@@ -37,7 +43,6 @@ app.use(
         connectSrc: ["'self'", 'https://graph.microsoft.com'],
         objectSrc: ["'none'"],
         baseUri: ["'self'"],
-        frameAncestors: ["'self'"],
         upgradeInsecureRequests: config.secureCookies ? [] : null,
       },
     },
@@ -58,7 +63,10 @@ app.use(
     saveUninitialized: false,
     cookie: {
       httpOnly: true,
-      sameSite: 'lax',
+      // Cross-site-Embedding (EMBED_ANCESTORS) braucht SameSite=None, sonst wird
+      // das Session-Cookie im fremden iframe nie mitgeschickt. None erfordert Secure
+      // (per config.validate() erzwungen). Ohne Embedding bleibt Lax (CSRF-Schutz).
+      sameSite: config.embedAncestors.length ? 'none' : 'lax',
       secure: config.secureCookies,
       maxAge: 1000 * 60 * 60 * 12, // 12h
     },
