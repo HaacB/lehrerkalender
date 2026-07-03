@@ -124,6 +124,9 @@ td.ec.fei:hover{background:#f5d5d5}
 td.ec.emp{background:var(--sur2);opacity:.2;cursor:default}
 td.ec.tdc{outline:1.5px solid var(--acbor);outline-offset:-1px}
 .epill{display:inline-block;border-radius:2px;padding:1px 4px;font-size:10px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;line-height:1.4;cursor:pointer}
+.deptpill{display:inline-block;background:#EEEDFE;color:#3C3489;border:.5px solid #AFA9EC;border-radius:2px;padding:0 3px;font-size:9px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;line-height:1.5;margin-top:1px;cursor:pointer}
+.wg-dept{font-size:9px;color:#3C3489;background:#EEEDFE;border:.5px solid #CECBF6;border-radius:2px;padding:0 2px;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+:root[data-theme="dark"] .deptpill,:root[data-theme="dark"] .wg-dept{background:#26215C;color:#CECBF6;border-color:#3C3489}
 .pk{background:#E6F1FB;color:#0C447C}
 .pd{background:#FCEBEB;color:#791F1F}
 .pt{background:#FAEEDA;color:#633806}
@@ -366,6 +369,9 @@ function lkReloadState(){
   S.weekConfig=ld('lp_wkcfg',{});
   S.kbData=ld('lp_kb',{});
   S.lessonLinks=ld('lp_links',{});
+  S.deptTerms=ld('lp_deptterms',{});
+  S.deptOn=ld('lp_depton',{});
+  S.deptHidden=ld('lp_depthidden',{});
 }
 (function lkBootstrap(){
   fetch('/api/me',{credentials:'same-origin'})
@@ -477,8 +483,13 @@ const S={
   stundenplaene:loadPlans(),
   weekConfig:ld('lp_wkcfg',{}),
   kbData:ld('lp_kb',{}),
-  lessonLinks:ld('lp_links',{})
+  lessonLinks:ld('lp_links',{}),
+  deptTerms:ld('lp_deptterms',{}),
+  deptOn:ld('lp_depton',{}),
+  deptHidden:ld('lp_depthidden',{})
 };
+// Abteilungen mit Terminplanung (Excel-Import).
+const DEPTS=['BG','BOS','SPA','BFS3','AVSH'];
 
 // Lädt die Stundenpläne und heilt einen kaputten Leer-Zustand (z. B. lp_sp=[])
 // selbst: es müssen immer mindestens 1 Plan existieren. 0 Pläne würden Wochen-
@@ -511,7 +522,7 @@ function getActivePlan(dateStr){
   return S.stundenplaene.indexOf(dated[0]);
 }
 
-function saveAll(){sv('lp_lessons',S.lessons);sv('lp_klassen',S.klassen);sv('lp_hj',S.hjEntries);sv('lp_sp',S.stundenplaene);sv('lp_wkcfg',S.weekConfig);sv('lp_kb',S.kbData);sv('lp_sj',S.schuljahr);sv('lp_links',S.lessonLinks);}
+function saveAll(){sv('lp_lessons',S.lessons);sv('lp_klassen',S.klassen);sv('lp_hj',S.hjEntries);sv('lp_sp',S.stundenplaene);sv('lp_wkcfg',S.weekConfig);sv('lp_kb',S.kbData);sv('lp_sj',S.schuljahr);sv('lp_links',S.lessonLinks);sv('lp_deptterms',S.deptTerms);sv('lp_depton',S.deptOn);sv('lp_depthidden',S.deptHidden);}
 
 function getWeekNum(d){const dt=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate()));const dn=dt.getUTCDay()||7;dt.setUTCDate(dt.getUTCDate()+4-dn);const ys=new Date(Date.UTC(dt.getUTCFullYear(),0,1));return Math.ceil((((dt-ys)/86400000)+1)/7)}
 function getMonday(w,y){const j=new Date(y,0,1);const dw=j.getDay()||7;const m1=new Date(j);m1.setDate(j.getDate()+(1-dw));const r=new Date(m1);r.setDate(m1.getDate()+(w-1)*7);return r}
@@ -698,7 +709,8 @@ function renderWoche(c,ta){
       ?'<div style="font-size:9px;font-weight:500;color:'+( hjTypeColor[hHJ.type]||'#444')+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;padding:0 2px">'+esc(hHJ.text)+'</div>'
       :hFer?'<div style="font-size:9px;color:#3B6D11">'+ferieLabel(hds)+'</div>'
       :hFei?'<div style="font-size:9px;color:#8B2E2E">'+feiertagLabel(hds)+'</div>':'';
-    headers+=`<div class="wg-day ${isToday?'tod':''}"${hStyle}><div class="wg-dn">${DAYS[d]}</div><div class="wg-dd">${fmtDate(date)}</div>${hSub}</div>`;
+    const hDept=deptTermsForDate(hds).map(t=>`<div class="wg-dept" title="${esc(t.dept+': '+(t.titleFull||t.title)+(t.time?' ('+t.time+')':'')+(t.betrifft?' — '+t.betrifft:''))}">${esc(t.dept+(t.time?' '+t.time:'')+': '+t.title)}</div>`).join('');
+    headers+=`<div class="wg-day ${isToday?'tod':''}"${hStyle}><div class="wg-dn">${DAYS[d]}</div><div class="wg-dd">${fmtDate(date)}</div>${hSub}${hDept}</div>`;
   }
 
   let rows='';
@@ -843,6 +855,8 @@ function renderHalbjahr(c,ta){
       let inner='';
       if(entry){inner='<span class="epill '+(pc[entry.type]||'ps')+'" onclick="openHJEdit(event,&quot;'+ds+'&quot;)">'+esc(entry.text)+'</span>';}
       else if(fer&&!isWE){inner='<span style="font-size:9px;color:#3B6D11;opacity:.6">'+ferieLabel(ds)+'</span>';}
+      const dts=deptTermsForDate(ds);
+      if(dts.length)inner+=dts.map(t=>'<span class="deptpill" title="'+esc(t.dept+': '+(t.titleFull||t.title)+(t.time?' ('+t.time+')':''))+'" onclick="event.stopPropagation();openDeptManage(&quot;'+t.dept+'&quot;)">'+esc(t.dept)+': '+esc(t.title)+'</span>').join('');
       h+='<td class="'+cls+'" onclick="openHJAdd(&quot;'+ds+'&quot;)">'+inner+'</td>';
     });
     h+='</tr>';
@@ -1162,6 +1176,94 @@ function deleteFerie(i){if(!confirm('Ferienblock löschen?'))return;const f=getF
 function addFerienBlock(){const f=getFerien(curSJ());f.push({s:todayStr(),e:todayStr(),l:'Ferien'});saveFerien(curSJ(),f);render();}
 function exportFerien(){const f=getFerien(curSJ());const b=new Blob([JSON.stringify({schuljahr:curSJ(),ferien:f},null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='ferien-'+curSJ().replace('/','_')+'.json';a.click();toast('Ferien exportiert');}
 function importFerien(input){const f=input.files[0];if(!f)return;const r=new FileReader();r.onload=e=>{try{const d=JSON.parse(e.target.result);if(d.ferien&&Array.isArray(d.ferien)){saveFerien(curSJ(),d.ferien);toast(d.ferien.length+' Ferienblöcke importiert');render();}else{alert('Ungültiges Format');}}catch{alert('Fehler beim Lesen.');}};r.readAsText(f);}
+/* ===== ABTEILUNGS-TERMINE (Excel-Import) ===== */
+// SheetJS nur bei Bedarf laden (spart ~880 KB beim normalen Start).
+let __xlsxLoading;
+function ladeXLSX(){
+  if(window.XLSX)return Promise.resolve(window.XLSX);
+  if(__xlsxLoading)return __xlsxLoading;
+  __xlsxLoading=new Promise(function(resolve,reject){
+    const sc=document.createElement('script');
+    sc.src='vendor/xlsx/xlsx.full.min.js';
+    sc.onload=function(){resolve(window.XLSX);};
+    sc.onerror=function(){reject(new Error('Excel-Bibliothek konnte nicht geladen werden'));};
+    document.head.appendChild(sc);
+  });
+  return __xlsxLoading;
+}
+function iso(y,mo,d){return y+'-'+String(mo).padStart(2,'0')+'-'+String(d).padStart(2,'0');}
+// Datum(e) aus einer Zelle: Date-Objekt, Einzeldatum oder Bereich -> [start] oder [start,ende].
+function parseTerminDates(cell){
+  if(cell instanceof Date && !isNaN(cell))return [fmtD(cell)];
+  const s=String(cell==null?'':cell).trim();
+  if(!s||/^nn$/i.test(s))return [];
+  const fulls=[...s.matchAll(/(\d{1,2})\.(\d{1,2})\.(\d{4})/g)];
+  if(fulls.length>=2){const a=fulls[0],b=fulls[fulls.length-1];return [iso(+a[3],+a[2],+a[1]),iso(+b[3],+b[2],+b[1])];}
+  if(fulls.length===1){
+    const f=fulls[0],endDay=+f[1],mo=+f[2],y=+f[3];
+    const head=s.slice(0,f.index).match(/(\d{1,2})\./);
+    if(head){const a=iso(y,mo,+head[1]),b=iso(y,mo,endDay);return a===b?[a]:[a,b];}
+    return [iso(y,mo,endDay)];
+  }
+  return [];
+}
+// betrifft enthält "LK" als eigenständiges Kürzel (nicht SLK, nicht KL).
+function betrifftLK(v){return /(^|[^A-Za-zÄÖÜäöüß])LK([^A-Za-zÄÖÜäöüß]|$)/.test(String(v||''));}
+
+async function importDeptFile(input){
+  const file=input.files&&input.files[0];if(!file)return;
+  const dept=document.getElementById('dept-sel')?.value||DEPTS[0];
+  let XLSX;try{XLSX=await ladeXLSX();}catch(e){alert(e.message);input.value='';return;}
+  try{
+    const buf=await file.arrayBuffer();
+    const wb=XLSX.read(new Uint8Array(buf),{type:'array',cellDates:true});
+    const shName=wb.SheetNames.find(n=>/lehrkr/i.test(n))||wb.SheetNames[0];
+    const rows=XLSX.utils.sheet_to_json(wb.Sheets[shName],{header:1,raw:true,defval:''});
+    let hi=-1;
+    for(let i=0;i<Math.min(rows.length,15);i++){
+      const t=rows[i].map(x=>String(x).toLowerCase());
+      if(t.some(c=>c.includes('datum'))&&t.some(c=>c.includes('termin'))&&t.some(c=>c.includes('betrifft'))){hi=i;break;}
+    }
+    if(hi<0){alert('Kopfzeile (Datum / Termin / betrifft) nicht gefunden. Ist es die richtige Vorlage?');input.value='';return;}
+    const hdr=rows[hi].map(x=>String(x).toLowerCase());
+    const col=n=>hdr.findIndex(c=>c.includes(n));
+    const cD=col('datum'),cU=col('uhrzeit'),cT=col('termin'),cB=col('betrifft');
+    const terms=[];let n=0;
+    for(let i=hi+1;i<rows.length;i++){
+      const r=rows[i];
+      const betrifft=String(r[cB]==null?'':r[cB]).trim();
+      const title=String(r[cT]==null?'':r[cT]).trim();
+      if(!title||!betrifftLK(betrifft))continue;
+      const dates=parseTerminDates(r[cD]);
+      if(!dates.length)continue;
+      const time=cU>=0?String(r[cU]==null?'':r[cU]).trim():'';
+      dates.forEach(function(d,idx){
+        const suffix=dates.length>1?(idx===0?' (Beginn)':' (Ende)'):'';
+        terms.push({id:dept+'_'+d+'_'+(n++),date:d,title:title,titleFull:title+suffix,time:time,betrifft:betrifft});
+      });
+    }
+    if(!terms.length){alert('Keine LK-Termine gefunden (nur Zeilen mit „LK" in der Spalte betrifft werden übernommen).');input.value='';return;}
+    S.deptTerms[dept]=terms;S.deptOn[dept]=true;
+    Object.keys(S.deptHidden).forEach(k=>{if(k.startsWith(dept+'_'))delete S.deptHidden[k];});
+    saveAll();toast(dept+': '+terms.length+' LK-Termine importiert');render();
+  }catch(e){console.error(e);alert('Import fehlgeschlagen: '+(e.message||e));}
+  finally{input.value='';}
+}
+function toggleDept(dep){S.deptOn[dep]=!S.deptOn[dep];saveAll();render();}
+function clearDept(dep){if(!confirm('Alle importierten '+dep+'-Termine entfernen?'))return;delete S.deptTerms[dep];delete S.deptOn[dep];Object.keys(S.deptHidden).forEach(k=>{if(k.startsWith(dep+'_'))delete S.deptHidden[k];});saveAll();render();}
+function hideDeptTerm(id){S.deptHidden[id]=true;saveAll();render();}
+function unhideDeptTerm(id){delete S.deptHidden[id];saveAll();render();}
+function openDeptManage(dep){S.modal={type:'deptmanage',dept:dep};renderModal();}
+// Aktive, nicht ausgeblendete Abteilungs-Termine für ein Datum.
+function deptTermsForDate(ds){
+  const out=[];
+  DEPTS.forEach(function(dep){
+    if(!S.deptOn[dep])return;
+    (S.deptTerms[dep]||[]).forEach(function(t){if(t.date===ds&&!S.deptHidden[t.id])out.push(Object.assign({dept:dep},t));});
+  });
+  return out;
+}
+
 function renderImport(c){
   c.innerHTML=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;max-width:860px">
     <div class="card"><div class="ctit"><i class="ti ti-file-text" aria-hidden="true"></i>Schülerliste aus WebUntis</div>
@@ -1176,6 +1278,27 @@ function renderImport(c){
       <div class="field"><label>Tenant-ID</label><input type="text" id="ms-tid" placeholder="common" value="${localStorage.getItem('ms_tid')||'common'}"></div>
       <button class="btn pri" style="width:100%;justify-content:center" onclick="connectOutlook()"><i class="ti ti-brand-windows" aria-hidden="true"></i>Verbinden</button>
     </div>
+  </div>
+  <div class="card" style="max-width:860px;margin-top:14px"><div class="ctit"><i class="ti ti-calendar-plus" aria-hidden="true"></i>Abteilungs-Termine (Excel)</div>
+    <p style="font-size:12px;color:var(--tx2);margin-bottom:12px">Excel-Terminplan einer Abteilung hochladen. Übernommen werden <b>nur Termine mit „LK" in der Spalte betrifft</b> (Datum + Titel für den Halbjahresplaner; zusätzlich Uhrzeit + betrifft für den Wochenplaner). Ein erneuter Import derselben Abteilung ersetzt die alten Termine.</p>
+    <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:6px">
+      <div class="field" style="margin:0"><label>Abteilung</label><select id="dept-sel" style="min-width:120px">${DEPTS.map(d=>`<option>${d}</option>`).join('')}</select></div>
+      <div class="dz" style="flex:1;min-width:180px" onclick="document.getElementById('dept-f').click()"><i class="ti ti-upload" aria-hidden="true"></i>Excel hochladen<input type="file" id="dept-f" accept=".xlsx,.xls" style="display:none" onchange="importDeptFile(this)"></div>
+    </div>
+    ${(function(){
+      const imported=DEPTS.filter(d=>(S.deptTerms[d]||[]).length);
+      if(!imported.length)return '<p style="font-size:12px;color:var(--tx3);margin-top:8px">Noch keine Abteilung importiert.</p>';
+      return '<div style="margin-top:8px">'+imported.map(d=>{
+        const list=S.deptTerms[d]||[];const cnt=list.length;const hid=list.filter(t=>S.deptHidden[t.id]).length;const on=!!S.deptOn[d];
+        return `<div class="srow" style="border-top:.5px solid var(--bor);padding:8px 0;gap:8px;flex-wrap:wrap">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px"><input type="checkbox" ${on?'checked':''} onchange="toggleDept('${d}')" style="width:auto;flex:none;margin:0"> <b>${d}</b> <span style="color:var(--tx2);font-weight:400">${cnt} Termine${hid?' · '+hid+' ausgeblendet':''}</span></label>
+          <span style="display:flex;gap:6px;margin-left:auto">
+            <button class="btn sml" onclick="openDeptManage('${d}')"><i class="ti ti-list-details" aria-hidden="true"></i>Verwalten</button>
+            <button class="btn sml" style="color:var(--re)" onclick="clearDept('${d}')" title="Ganze Abteilung entfernen"><i class="ti ti-trash"></i></button>
+          </span>
+        </div>`;
+      }).join('')+'</div>';
+    })()}
   </div>`;
 }
 
@@ -1292,6 +1415,25 @@ function renderModal(){
         <button class="btn" onclick="closeModal()">Abbrechen</button>
         <button class="btn pri" onclick="doPrint()"><i class="ti ti-printer"></i>Drucken</button>
       </div></div>`;
+
+  } else if(type==='deptmanage'){
+    const dep=S.modal.dept;
+    const list=(S.deptTerms[dep]||[]).slice().sort((a,b)=>a.date.localeCompare(b.date));
+    const fmt=d=>{const p=d.split('-');return p[2]+'.'+p[1]+'.'+p[0];};
+    const rows=list.map(t=>{
+      const hidden=!!S.deptHidden[t.id];
+      return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-top:.5px solid var(--bor)${hidden?';opacity:.5':''}">
+        <span style="font-size:11px;color:var(--tx2);min-width:74px;flex-shrink:0">${fmt(t.date)}</span>
+        <span style="flex:1;font-size:12px;${hidden?'text-decoration:line-through':''}">${esc(t.titleFull||t.title)}${t.time?` <span style="color:var(--tx3)">· ${esc(t.time)}</span>`:''}</span>
+        ${hidden
+          ?`<button class="btn sml" onclick="unhideDeptTerm('${t.id}')" title="Wieder einblenden"><i class="ti ti-eye"></i></button>`
+          :`<button class="btn sml" onclick="hideDeptTerm('${t.id}')" title="Für mich ausblenden"><i class="ti ti-eye-off"></i></button>`}
+      </div>`;
+    }).join('');
+    html=`<div class="modal" style="max-width:580px"><div class="mhd"><div class="mtit">${esc(dep)} · Termine verwalten</div><button class="btn ico" onclick="closeModal()"><i class="ti ti-x"></i></button></div>
+      <p style="font-size:12px;color:var(--tx2);margin-bottom:6px">Einzelne Termine für dich ausblenden (Auge). Sie verschwinden aus Halbjahres- und Wochenplaner, bleiben aber wiederherstellbar.</p>
+      <div style="max-height:52vh;overflow:auto">${rows||'<p style="color:var(--tx3);font-size:12px;padding:8px 0">Keine Termine.</p>'}</div>
+      <div class="mfoot"><button class="btn pri" onclick="closeModal()">Fertig</button></div></div>`;
 
   } else if(type==='spcell'){
     const plan=S.stundenplaene[S.spPlan]||S.stundenplaene[0];
