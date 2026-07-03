@@ -490,6 +490,24 @@ const S={
 };
 // Abteilungen mit Terminplanung (Excel-Import).
 const DEPTS=['BG','BOS','SPA','BFS3','AVSH'];
+// App-Version (bei jedem Release mit dem Service-Worker-Cache hochzaehlen).
+const APP_VERSION='v14 · 03.07.2026';
+// Zwischenspeicher + Service Worker leeren und neu laden -> holt garantiert den
+// neuesten Stand ("App aktualisieren"-Knopf). Loescht KEINE Nutzerdaten.
+async function forceUpdate(){
+  if(!confirm('App auf den neuesten Stand bringen?\nDie Seite wird neu geladen. Deine Daten bleiben erhalten.'))return;
+  try{
+    if('serviceWorker' in navigator){
+      const regs=await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map(r=>r.unregister()));
+    }
+    if(window.caches){
+      const ks=await caches.keys();
+      await Promise.all(ks.map(k=>caches.delete(k)));
+    }
+  }catch(e){/* egal – trotzdem neu laden */}
+  location.reload();
+}
 
 // Lädt die Stundenpläne und heilt einen kaputten Leer-Zustand (z. B. lp_sp=[])
 // selbst: es müssen immer mindestens 1 Plan existieren. 0 Pläne würden Wochen-
@@ -1330,6 +1348,11 @@ function renderEinstellungen(c){
     </div>
     <div class="card" style="margin-top:14px"><div class="ctit"><i class="ti ti-device-mobile" aria-hidden="true"></i>App installieren</div>
       <p style="font-size:13px;color:var(--tx2);line-height:1.7"><strong>Chrome/Edge:</strong> Adressleiste → Installieren-Symbol<br><strong>iPhone/Safari:</strong> Teilen → Zum Home-Bildschirm<br><strong>Android/Chrome:</strong> Menü → App installieren</p>
+    </div>
+    <div class="card" style="margin-top:14px"><div class="ctit"><i class="ti ti-refresh" aria-hidden="true"></i>App-Version</div>
+      <div class="srow"><span>Aktuelle Version</span><span style="font-weight:600">${APP_VERSION}</span></div>
+      <p style="font-size:12px;color:var(--tx2);line-height:1.6;margin:8px 0">Falls du noch eine ältere Version siehst: Ein Tipp holt den neuesten Stand (leert den Zwischenspeicher und lädt neu). Deine Daten bleiben erhalten.</p>
+      <button class="btn pri" onclick="forceUpdate()"><i class="ti ti-refresh" aria-hidden="true"></i>App aktualisieren</button>
     </div>
   </div>`;
 }

@@ -1,4 +1,4 @@
-const CACHE = 'lehrerkalender-v13';
+const CACHE = 'lehrerkalender-v14';
 const ASSETS = [
   '/',
   '/index.html',
