@@ -243,6 +243,30 @@ td.ec.tdc{outline:1.5px solid var(--acbor);outline-offset:-1px}
 .wg-daybtn.active{background:var(--acbg);border-color:var(--acbor);color:var(--actx);font-weight:600}
 
 @media print{.sidebar,.topbar,.tbact,.bottombar,.wg-daynav,.kl-tabs .btn,.kb-legend .btn{display:none!important}.app{display:block}.main{overflow:visible}.content{padding:8px}.kb-wrap{overflow:visible}}
+/* ── Druck-Auszug Klassenbuch (pro Schueler:in). #print-root ist am Bildschirm
+   immer versteckt und wird nur beim gezielten Drucken (body.printing) sichtbar. ── */
+#print-root{display:none}
+@media print{
+  body.printing .app{display:none!important}
+  body.printing #print-root{display:block!important}
+  #print-root{color:#111;font-family:-apple-system,'Segoe UI',system-ui,sans-serif}
+  .pp{page-break-after:always;padding:2mm}
+  .pp:last-child{page-break-after:auto}
+  .pp h1{font-size:19px;font-weight:600;margin:0 0 3px}
+  .pp .pmeta{font-size:11px;color:#333;margin:0 0 4px}
+  .pp .pstrip{display:flex;flex-wrap:wrap;gap:7px;margin:10px 0 14px}
+  .pp .pcell{display:flex;flex-direction:column;align-items:center;gap:3px;width:38px}
+  .pp .pcell .pdate{font-size:8px;color:#333}
+  .pp .psw{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .pp table.pt{border-collapse:collapse;width:100%;font-size:12px}
+  .pp table.pt th,.pp table.pt td{border:1px solid #999;padding:4px 9px;text-align:left;vertical-align:middle;background:#fff;color:#111}
+  .pp table.pt th{background:#eee;font-weight:600;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .pp table.pt tbody tr:nth-child(even) td{background:#f3f2ee;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .pp .pdw{display:flex;align-items:center;gap:8px}
+  .pp .plegend{margin-top:14px;font-size:10px;color:#333;display:flex;flex-wrap:wrap;gap:12px}
+  .pp .plegend span{display:inline-flex;align-items:center;gap:5px}
+  @page{margin:12mm}
+}
 
 /* Tablet: schmale Icon-Rail-Sidebar */
 @media(max-width:900px){.sidebar{width:52px;min-width:52px}.logo-tx,.logo-sub,.ni span,.nsec{display:none}.ni{padding:10px;justify-content:center}.shead{padding:12px 8px}.content{padding:14px}}
@@ -413,6 +437,8 @@ const KB_CYCLE={leer:'gruen',gruen:'gelb',gelb:'orange',orange:'rot',rot:'abwese
 // Zellhintergrund bleibt neutral – die Farbe steckt jetzt kräftig im Punkt/Kästchen
 // (funktioniert so auch im Dark Mode, wo helle Tönungen kaum sichtbar waren).
 const KB_BG={leer:'transparent',gruen:'transparent',gelb:'transparent',orange:'transparent',rot:'transparent',abwesend:'transparent',unentschuldigt:'transparent'};
+// Kräftige Farben für den Druck-Auszug (Kästchen = Mitarbeit, Kreis = Abwesenheit).
+const KB_PRINTC={gruen:'#639922',gelb:'#FFD21A',orange:'#F07E13',rot:'#E81C1C',abwesend:'#6E6E64',unentschuldigt:'#8B1A1A'};
 
 function ld(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch{return d}}
 function sv(k,v){const s=JSON.stringify(v);localStorage.setItem(k,s);lkPush(k,s)}
@@ -840,7 +866,7 @@ function renderKlassen(c,ta){
   if(!S.selKlasse&&S.klassen.length)S.selKlasse=S.klassen[0].id;
   const kl=S.klassen.find(k=>k.id===S.selKlasse);
 
-  ta.innerHTML=`<button class="btn pri" onclick="window.print()"><i class="ti ti-printer" aria-hidden="true"></i>Drucken</button>
+  ta.innerHTML=`<button class="btn pri" onclick="openPrintDialog()"><i class="ti ti-printer" aria-hidden="true"></i>Drucken</button>
     <button class="btn" onclick="openAddKlasse()"><i class="ti ti-plus" aria-hidden="true"></i>Klasse</button>
     <button class="btn" onclick="openAddSuS()" ${!S.selKlasse?'disabled title="Erst Klasse auswählen"':''}><i class="ti ti-user-plus" aria-hidden="true"></i>Schüler/in</button>`;
 
@@ -915,6 +941,68 @@ ${allFaecher.length>0?`<div style='display:flex;gap:6px;margin-bottom:8px;align-
   c.innerHTML=tabs+tbl;
 }
 
+/* ===== DRUCKEN (Klassenbuch-Auszug: ganze Klasse oder einzelne:r Schueler:in) ===== */
+// Inline-Style fuer ein Farb-Kaestchen/-Kreis im Druck. leer -> nur duenner Rahmen.
+function kbSwatchStyle(color,size){
+  const c=KB_PRINTC[color];
+  const kreis=(color==='abwesend'||color==='unentschuldigt');
+  const rad=kreis?'50%':'3px';
+  return c?`width:${size}px;height:${size}px;background:${c};border-radius:${rad}`
+          :`width:${size}px;height:${size}px;border:1px solid #bbb;border-radius:${rad}`;
+}
+// Ein Druck-Blatt fuer eine:n Schueler:in.
+function buildStudentPP(kl,s,dates,withNotes){
+  const fach=S.selFach;
+  const schule=localStorage.getItem('pref_schule')||'';
+  const lehrer=localStorage.getItem('pref_name')||localStorage.getItem('lk_name')||'';
+  const heute=new Date().toLocaleDateString('de-DE');
+  const fmt=d=>{const p=d.split('-');return p[2]+'.'+p[1]+'.'+p[0].slice(2)};
+  const order=['gruen','gelb','orange','rot','abwesend','unentschuldigt'];
+  let strip='',rows='',counts={};
+  dates.forEach(d=>{
+    const e=kbGet(kl.id,s.id,d,fach);const col=e.color||'leer';
+    counts[col]=(counts[col]||0)+1;
+    strip+=`<div class="pcell"><div class="psw" style="${kbSwatchStyle(col,26)}"></div><div class="pdate">${fmt(d)}</div></div>`;
+    const note=withNotes?`<td>${esc(e.note||'')}</td>`:'';
+    rows+=`<tr><td>${fmt(d)}</td><td><div class="pdw"><span class="psw" style="${kbSwatchStyle(col,15)}"></span>${col==='leer'?'—':esc(KB_TITLE[col]||col)}</div></td>${note}</tr>`;
+  });
+  const summ=order.filter(k=>counts[k]).map(k=>counts[k]+'× '+KB_TITLE[k]).join(' · ');
+  const legend=order.map(k=>`<span><span class="psw" style="${kbSwatchStyle(k,11)}"></span>${KB_TITLE[k]}</span>`).join('');
+  return `<div class="pp">
+    <h1>Mitarbeit &ndash; ${esc(s.name)}</h1>
+    <div class="pmeta">Klasse ${esc(kl.name)}${fach?' · '+esc(fach):''} · Schuljahr ${esc(curSJ())}${schule?' · '+esc(schule):''}${lehrer?' · '+esc(lehrer):''} · Stand ${heute}</div>
+    ${summ?`<div class="pmeta"><strong>&Uuml;berblick:</strong> ${summ}</div>`:''}
+    <div class="pstrip">${strip}</div>
+    <table class="pt"><thead><tr><th>Datum</th><th>Bewertung</th>${withNotes?'<th>Notiz</th>':''}</tr></thead><tbody>${rows}</tbody></table>
+    <div class="plegend">${legend}</div>
+  </div>`;
+}
+function openPrintDialog(){
+  if(!S.selKlasse){toast('Bitte zuerst eine Klasse auswählen');return;}
+  S.modal={type:'print'};renderModal();
+}
+function doPrint(){
+  const kl=S.klassen.find(k=>k.id===S.selKlasse);if(!kl)return;
+  const ov=document.getElementById('movl');if(!ov)return;
+  const scope=ov.querySelector('input[name="pscope"]:checked')?.value||'klasse';
+  const sid=ov.querySelector('#p-sid')?.value||'';
+  const withNotes=!!(ov.querySelector('#p-notes')&&ov.querySelector('#p-notes').checked);
+  const dates=kbDates(kl.id,S.selFach);
+  if(!dates.length){alert('Für diese Klasse gibt es noch keine Termine/Bewertungen zum Drucken.');return;}
+  const studs=scope==='schueler'?kl.schueler.filter(s=>s.id===sid):kl.schueler;
+  if(!studs.length){alert('Bitte eine:n Schüler:in auswählen.');return;}
+  let pr=document.getElementById('print-root');
+  if(!pr){pr=document.createElement('div');pr.id='print-root';document.body.appendChild(pr);}
+  pr.innerHTML=studs.map(s=>buildStudentPP(kl,s,dates,withNotes)).join('');
+  closeModal();
+  document.body.classList.add('printing');
+  window.print();
+}
+// Nach dem Druck aufraeumen (Sicherheitsnetz; am Bildschirm bleibt alles sichtbar).
+window.addEventListener('afterprint',function(){
+  document.body.classList.remove('printing');
+  const pr=document.getElementById('print-root');if(pr)pr.innerHTML='';
+});
 function selKl(id){S.selKlasse=id;S.selFach='';render()}
 function setSelFach(f){S.selFach=f;render();}
 function openAddSuS(){
@@ -1168,6 +1256,22 @@ function renderModal(){
         <button class="btn dan sml" onclick="clearKbEntry()"><i class="ti ti-trash"></i></button>
         <button class="btn" onclick="closeModal()">Abbrechen</button>
         <button class="btn pri" onclick="saveKbNote()"><i class="ti ti-check"></i>Speichern</button>
+      </div></div>`;
+
+  } else if(type==='print'){
+    const kl=S.klassen.find(k=>k.id===S.selKlasse);
+    const opts=(kl?.schueler||[]).map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join('');
+    html=`<div class="modal"><div class="mhd"><div class="mtit"><i class="ti ti-printer" aria-hidden="true"></i> Drucken${kl?' · '+esc(kl.name):''}</div><button class="btn ico" onclick="closeModal()"><i class="ti ti-x"></i></button></div>
+      <div class="field"><label>Was drucken?</label>
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin:6px 0;cursor:pointer"><input type="radio" name="pscope" value="klasse" checked style="width:auto;flex:none;margin:0" onchange="document.getElementById('p-sid').disabled=true"> Ganze Klasse &ndash; ein Blatt pro Schüler:in</label>
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin:6px 0;cursor:pointer"><input type="radio" name="pscope" value="schueler" style="width:auto;flex:none;margin:0" onchange="document.getElementById('p-sid').disabled=false"> Einzelne:r Schüler:in:</label>
+        <select id="p-sid" disabled style="margin-top:2px">${opts}</select>
+      </div>
+      <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin:12px 0;cursor:pointer"><input type="checkbox" id="p-notes" style="width:auto;flex:none;margin:0"> Notizen mitdrucken</label>
+      <div style="font-size:11px;color:var(--tx3);line-height:1.6;margin-bottom:6px">Es öffnet sich der Druckdialog deines Geräts – dort kannst du „Als PDF speichern" oder einen Drucker wählen. Nichts wird auf dem Server gespeichert.</div>
+      <div class="mfoot">
+        <button class="btn" onclick="closeModal()">Abbrechen</button>
+        <button class="btn pri" onclick="doPrint()"><i class="ti ti-printer"></i>Drucken</button>
       </div></div>`;
 
   } else if(type==='spcell'){
