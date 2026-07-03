@@ -618,11 +618,22 @@ function closeMoreSheet(){
   document.getElementById('more-backdrop')?.classList.remove('show');
 }
 function setMobileDay(d){S.mobileDay=Math.max(0,Math.min(4,d));render();}
-// Bei Breakpoint-/Orientierungswechsel Wochenansicht neu rendern (Grid <-> Einzeltag).
-let __rzTimer;
+// Nur bei echtem Wechsel Phone<->Desktop neu rendern (Grid <-> Einzeltag).
+// WICHTIG: NICHT bei jedem resize neu zeichnen — auf dem Handy feuert resize auch
+// beim Öffnen der Tastatur und beim Ein-/Ausblenden der Adressleiste. Ein
+// Neuaufbau würde dann einen offenen Dialog zerstören (Eingabe/Fokus weg) und die
+// Notiz-/Eintragseingabe „sofort wieder schließen". Deshalb: nur wenn sich der
+// Breakpoint (Breite) wirklich ändert UND kein Dialog offen ist.
+let __rzTimer, __wasPhone=isPhone();
 window.addEventListener('resize',function(){
   clearTimeout(__rzTimer);
-  __rzTimer=setTimeout(function(){closeMoreSheet();if(S.view==='woche')render();},150);
+  __rzTimer=setTimeout(function(){
+    const nowPhone=isPhone();
+    if(nowPhone===__wasPhone)return;      // Breite hat den Breakpoint nicht gekreuzt
+    __wasPhone=nowPhone;
+    closeMoreSheet();
+    if(S.view==='woche'&&!S.modal)render();
+  },200);
 });
 
 function render(){
@@ -942,13 +953,21 @@ ${allFaecher.length>0?`<div style='display:flex;gap:6px;margin-bottom:8px;align-
 }
 
 /* ===== DRUCKEN (Klassenbuch-Auszug: ganze Klasse oder einzelne:r Schueler:in) ===== */
-// Inline-Style fuer ein Farb-Kaestchen/-Kreis im Druck. leer -> nur duenner Rahmen.
-function kbSwatchStyle(color,size){
+// Farb-Kaestchen/-Kreis als Inline-SVG. SVG-Fuellungen drucken auf ALLEN Geraeten
+// zuverlaessig (auch iPhone/Safari) — CSS-Hintergrundfarben werden mobil oft
+// weggelassen (deshalb waren die Felder im Handy-Druck leer). leer -> nur Rahmen.
+function kbSwatchSVG(color,size){
   const c=KB_PRINTC[color];
   const kreis=(color==='abwesend'||color==='unentschuldigt');
-  const rad=kreis?'50%':'3px';
-  return c?`width:${size}px;height:${size}px;background:${c};border-radius:${rad}`
-          :`width:${size}px;height:${size}px;border:1px solid #bbb;border-radius:${rad}`;
+  const st='vertical-align:middle;flex:none';
+  if(!c){
+    return kreis
+      ?`<svg width="${size}" height="${size}" style="${st}"><circle cx="${size/2}" cy="${size/2}" r="${size/2-1}" fill="#fff" stroke="#bbb"/></svg>`
+      :`<svg width="${size}" height="${size}" style="${st}"><rect x="0.5" y="0.5" width="${size-1}" height="${size-1}" rx="2" fill="#fff" stroke="#bbb"/></svg>`;
+  }
+  return kreis
+    ?`<svg width="${size}" height="${size}" style="${st}"><circle cx="${size/2}" cy="${size/2}" r="${size/2}" fill="${c}"/></svg>`
+    :`<svg width="${size}" height="${size}" style="${st}"><rect width="${size}" height="${size}" rx="3" fill="${c}"/></svg>`;
 }
 // Ein Druck-Blatt fuer eine:n Schueler:in.
 function buildStudentPP(kl,s,dates,withNotes){
@@ -962,12 +981,12 @@ function buildStudentPP(kl,s,dates,withNotes){
   dates.forEach(d=>{
     const e=kbGet(kl.id,s.id,d,fach);const col=e.color||'leer';
     counts[col]=(counts[col]||0)+1;
-    strip+=`<div class="pcell"><div class="psw" style="${kbSwatchStyle(col,26)}"></div><div class="pdate">${fmt(d)}</div></div>`;
+    strip+=`<div class="pcell">${kbSwatchSVG(col,26)}<div class="pdate">${fmt(d)}</div></div>`;
     const note=withNotes?`<td>${esc(e.note||'')}</td>`:'';
-    rows+=`<tr><td>${fmt(d)}</td><td><div class="pdw"><span class="psw" style="${kbSwatchStyle(col,15)}"></span>${col==='leer'?'—':esc(KB_TITLE[col]||col)}</div></td>${note}</tr>`;
+    rows+=`<tr><td>${fmt(d)}</td><td><div class="pdw">${kbSwatchSVG(col,15)}${col==='leer'?'—':esc(KB_TITLE[col]||col)}</div></td>${note}</tr>`;
   });
   const summ=order.filter(k=>counts[k]).map(k=>counts[k]+'× '+KB_TITLE[k]).join(' · ');
-  const legend=order.map(k=>`<span><span class="psw" style="${kbSwatchStyle(k,11)}"></span>${KB_TITLE[k]}</span>`).join('');
+  const legend=order.map(k=>`<span>${kbSwatchSVG(k,11)}${KB_TITLE[k]}</span>`).join('');
   return `<div class="pp">
     <h1>Mitarbeit &ndash; ${esc(s.name)}</h1>
     <div class="pmeta">Klasse ${esc(kl.name)}${fach?' · '+esc(fach):''} · Schuljahr ${esc(curSJ())}${schule?' · '+esc(schule):''}${lehrer?' · '+esc(lehrer):''} · Stand ${heute}</div>
