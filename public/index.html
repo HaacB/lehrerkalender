@@ -491,7 +491,7 @@ const S={
 // Abteilungen mit Terminplanung (Excel-Import).
 const DEPTS=['BG','BOS','SPA','BFS3','AVSH'];
 // App-Version (bei jedem Release mit dem Service-Worker-Cache hochzaehlen).
-const APP_VERSION='v15 · 03.07.2026';
+const APP_VERSION='v16 · 03.07.2026';
 // Zwischenspeicher + Service Worker leeren und neu laden -> holt garantiert den
 // neuesten Stand ("App aktualisieren"-Knopf). Loescht KEINE Nutzerdaten.
 async function forceUpdate(){
@@ -672,7 +672,15 @@ function render(){
   const titles={woche:'Wochenplan',halbjahr:'Halbjahresübersicht',klassen:'Klassenbuch',stundenplan:'Stundenplan',ferien:'Ferien & Schuljahr',import:'Import',einstellungen:'Einstellungen'};
   vt.textContent=titles[S.view]||'';
   ta.innerHTML='';
-  ({woche:renderWoche,halbjahr:renderHalbjahr,klassen:renderKlassen,stundenplan:renderStundenplan,ferien:renderFerien,import:renderImport,einstellungen:renderEinstellungen})[S.view]?.(c,ta);
+  // Sicherheitsnetz: Ein Fehler in einer Ansicht darf nicht den Inhalt "einfrieren"
+  // (frueher blieb dann die vorher gezeigte Seite stehen). Stattdessen Fehlermeldung
+  // anzeigen und protokollieren.
+  try{
+    ({woche:renderWoche,halbjahr:renderHalbjahr,klassen:renderKlassen,stundenplan:renderStundenplan,ferien:renderFerien,import:renderImport,einstellungen:renderEinstellungen})[S.view]?.(c,ta);
+  }catch(err){
+    console.error('Render-Fehler in Ansicht "'+S.view+'":',err);
+    c.innerHTML='<div style="padding:24px;max-width:520px"><div style="font-weight:600;color:var(--re);margin-bottom:6px">Diese Ansicht konnte nicht angezeigt werden.</div><div style="font-size:12px;color:var(--tx2)">'+esc(String((err&&err.message)||err))+'</div></div>';
+  }
   renderModal();
 }
 
@@ -741,7 +749,11 @@ function renderWoche(c,ta){
       const l=S.lessons[key];
       const spCell=spGrid?.[h]?.[d]||{kl:'',fa:''};
       const hasSpData=spCell.kl||spCell.fa;
-      const klId=spCell.kl?S.klassen.find(k=>k.name===spCell.kl)?.id:null;
+      // Klassen-Objekt einmal holen und fuer id UND fach nutzen. (Frueher wurde hier
+      // 'kl?.fach' verwendet, ohne dass 'kl' definiert war -> ReferenceError, der den
+      // Wochenplan bei belegten Stundenplan-Zellen komplett abstuerzen liess.)
+      const klObj=spCell.kl?S.klassen.find(k=>k.name===spCell.kl):null;
+      const klId=klObj?klObj.id:null;
 
       let bg='';
       if(hasSpData){
@@ -749,7 +761,7 @@ function renderWoche(c,ta){
       }
       let klLink='';
       if(klId){
-        klLink=`<a class="sp-link" onclick="openKlasseFromLesson(event,'${klId}','${cellDateStr}','${esc(spCell.fa||'')}')" href="#" title="${esc(spCell.fa||kl?.fach||'')} – Zur Klassenliste">→ ${esc(spCell.fa||'Liste')}</a>`;
+        klLink=`<a class="sp-link" onclick="openKlasseFromLesson(event,'${klId}','${cellDateStr}','${esc(spCell.fa||'')}')" href="#" title="${esc(spCell.fa||(klObj&&klObj.fach)||'')} – Zur Klassenliste">→ ${esc(spCell.fa||'Liste')}</a>`;
       }
       let entry='';
       if(l){
