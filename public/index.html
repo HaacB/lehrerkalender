@@ -491,7 +491,7 @@ const S={
 // Abteilungen mit Terminplanung (Excel-Import).
 const DEPTS=['BG','BOS','SPA','BFS3','AVSH'];
 // App-Version (bei jedem Release mit dem Service-Worker-Cache hochzaehlen).
-const APP_VERSION='v14 · 03.07.2026';
+const APP_VERSION='v15 · 03.07.2026';
 // Zwischenspeicher + Service Worker leeren und neu laden -> holt garantiert den
 // neuesten Stand ("App aktualisieren"-Knopf). Loescht KEINE Nutzerdaten.
 async function forceUpdate(){
@@ -1166,6 +1166,7 @@ function renderFerien(c,ta){
   const sj=curSJ();
   const ferien=getFerien(sj);
   ta.innerHTML='<button class="btn pri" onclick="addFerienBlock()"><i class="ti ti-plus" aria-hidden="true"></i>Hinzufügen</button>'
+    +'<button class="btn" onclick="importBBZFerien()"><i class="ti ti-cloud-download" aria-hidden="true"></i>BBZ-Schulferien laden</button>'
     +'<button class="btn" onclick="importFeiertageSH()"><i class="ti ti-calendar-star" aria-hidden="true"></i>Feiertage SH importieren</button>'
     +'<button class="btn" onclick="exportFerien()"><i class="ti ti-download" aria-hidden="true"></i>Exportieren</button>'
     +'<button class="btn" onclick="document.getElementById(\'fer-imp\').click()"><i class="ti ti-upload" aria-hidden="true"></i>Importieren<input type="file" id="fer-imp" accept=".json" style="display:none" onchange="importFerien(this)"></button>';
@@ -1192,6 +1193,28 @@ function renderFerien(c,ta){
 function updateFerie(i,key,val){const f=getFerien(curSJ());f[i][key]=val;saveFerien(curSJ(),f);toast('Gespeichert');}
 function deleteFerie(i){if(!confirm('Ferienblock löschen?'))return;const f=getFerien(curSJ());f.splice(i,1);saveFerien(curSJ(),f);render();}
 function addFerienBlock(){const f=getFerien(curSJ());f.push({s:todayStr(),e:todayStr(),l:'Ferien'});saveFerien(curSJ(),f);render();}
+// Schulferien von der BBZ-Homepage laden (ueber die App-eigene Server-Route,
+// die die Daten serverseitig holt – der Browser darf die BBZ-Seite nicht direkt
+// abrufen). Ersetzt die Schulferien des Schuljahres, behaelt importierte Feiertage.
+async function importBBZFerien(){
+  const sj=curSJ();
+  if(!confirm('Schulferien für '+sj+' von der BBZ-Homepage laden?\nBestehende Ferien dieses Schuljahres werden ersetzt (importierte Feiertage bleiben).'))return;
+  try{
+    toast('Lade Schulferien vom BBZ …');
+    const r=await fetch('/api/bbz-ferien?sj='+encodeURIComponent(sj),{credentials:'same-origin'});
+    if(!r.ok){
+      let e={}; try{e=await r.json();}catch(_){}
+      alert('Konnte die Ferien nicht laden'+(e.error?': '+e.error:' (Status '+r.status+')')+'.\n\nHinweis: Das funktioniert nur in der echten (deployten) App mit Server – im lokalen Test ohne Server geht es nicht.');
+      return;
+    }
+    const data=await r.json();
+    if(!data.ferien||!data.ferien.length){alert('Keine Ferien für '+sj+' gefunden.');return;}
+    const feiertage=getFerien(sj).filter(f=>f.isFeiertag);
+    saveFerien(sj,data.ferien.concat(feiertage));
+    toast(data.ferien.length+' Schulferien vom BBZ übernommen');
+    render();
+  }catch(e){alert('Fehler beim Laden: '+(e.message||e));}
+}
 function exportFerien(){const f=getFerien(curSJ());const b=new Blob([JSON.stringify({schuljahr:curSJ(),ferien:f},null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='ferien-'+curSJ().replace('/','_')+'.json';a.click();toast('Ferien exportiert');}
 function importFerien(input){const f=input.files[0];if(!f)return;const r=new FileReader();r.onload=e=>{try{const d=JSON.parse(e.target.result);if(d.ferien&&Array.isArray(d.ferien)){saveFerien(curSJ(),d.ferien);toast(d.ferien.length+' Ferienblöcke importiert');render();}else{alert('Ungültiges Format');}}catch{alert('Fehler beim Lesen.');}};r.readAsText(f);}
 /* ===== ABTEILUNGS-TERMINE (Excel-Import) ===== */

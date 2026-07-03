@@ -78,4 +78,57 @@ router.put('/kv/:key', (req, res, next) => {
   }
 });
 
+// GET /api/bbz-ferien?sj=2026/27
+// Holt die Schulferien des BBZ (weichen von der Landesplanung ab) serverseitig
+// von der Homepage (Ninja-Table-JSON). Serverseitig, weil der Browser die
+// fremde Domain wegen CORS nicht direkt abrufen darf. Antwort:
+//   { sj, tableId, ferien: [ { l, s: 'YYYY-MM-DD', e: 'YYYY-MM-DD' } ] }
+const BBZ_FERIEN_PAGE =
+  'https://www.bbz-rd-eck.de/online-sekretariat/pruefungstermine-fristen-und-schulferien/';
+const BBZ_UA = { 'User-Agent': 'Mozilla/5.0 (Lehrerkalender)' };
+
+function bbzDeToIso(v) {
+  const m = String(v || '').match(/(\d{1,2})\.(\d{1,2})\.(\d{4})/);
+  return m ? `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}` : null;
+}
+
+router.get('/bbz-ferien', async (req, res) => {
+  const sj = String(req.query.sj || '').trim();
+  const m = sj.match(/^(\d{4})\/(\d{2,4})$/);
+  if (!m) return res.status(400).json({ error: 'sj muss das Format 2026/27 haben' });
+  const full = `${m[1]}/${m[2].length === 2 ? '20' + m[2] : m[2]}`; // 2026/2027
+  try {
+    // 1) Tabellen-ID des Schuljahres von der Seite ermitteln (robust gegen ID-Wechsel).
+    const page = await (await fetch(BBZ_FERIEN_PAGE, { headers: BBZ_UA })).text();
+    const idx = page.indexOf('Schulferien ' + full);
+    let tableId = null;
+    if (idx >= 0) {
+      const seg = page.slice(idx, idx + 2500);
+      const tm = seg.match(/footable_id="(\d+)"/) || seg.match(/foo_table_(\d+)/);
+      if (tm) tableId = tm[1];
+    }
+    if (!tableId) {
+      return res.status(404).json({ error: `Schuljahr ${full} auf der BBZ-Seite nicht gefunden` });
+    }
+    // 2) Tabellendaten (JSON) holen und in Ferienbloecke umwandeln.
+    const dataUrl =
+      'https://www.bbz-rd-eck.de/wp-admin/admin-ajax.php' +
+      '?action=wp_ajax_ninja_tables_public_action&table_id=' + tableId +
+      '&target_action=get-all-data&default_sorting=old_first';
+    const raw = await (await fetch(dataUrl, { headers: BBZ_UA })).json();
+    const ferien = (Array.isArray(raw) ? raw : [])
+      .map((r) => (r && r.value) || {})
+      .map((v) => ({
+        l: String(v.ferien || '').replace(/\s*\d{4}\s*$/, '').trim(), // "Herbstferien 2026" -> "Herbstferien"
+        s: bbzDeToIso(v.erster_ferientag),
+        e: bbzDeToIso(v.letzter_ferientag),
+      }))
+      .filter((x) => x.s && x.e && x.l);
+    res.json({ sj, tableId, ferien });
+  } catch (err) {
+    console.error('bbz-ferien:', err && err.message ? err.message : err);
+    res.status(502).json({ error: 'BBZ-Seite nicht erreichbar' });
+  }
+});
+
 module.exports = router;
