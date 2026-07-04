@@ -491,7 +491,7 @@ const S={
 // Abteilungen mit Terminplanung (Excel-Import).
 const DEPTS=['BG','BOS','SPA','BFS3','AVSH'];
 // App-Version (bei jedem Release mit dem Service-Worker-Cache hochzaehlen).
-const APP_VERSION='v16 · 03.07.2026';
+const APP_VERSION='v17 · 03.07.2026';
 // Zwischenspeicher + Service Worker leeren und neu laden -> holt garantiert den
 // neuesten Stand ("App aktualisieren"-Knopf). Loescht KEINE Nutzerdaten.
 async function forceUpdate(){
@@ -883,10 +883,10 @@ function renderHalbjahr(c,ta){
       if(isWE)cls+=' we';if(fer)cls+=' fer';if(ds===today)cls+=' tdc';
       const pc={konferenz:'pk',deadline:'pd',termin:'pt',frei:'pf',sonstiges:'ps'};
       let inner='';
-      if(entry){inner='<span class="epill '+(pc[entry.type]||'ps')+'" onclick="openHJEdit(event,&quot;'+ds+'&quot;)">'+esc(entry.text)+'</span>';}
+      if(entry){inner='<span class="epill '+(pc[entry.type]||'ps')+'" title="Zur Woche springen (Tag antippen = bearbeiten)" onclick="event.stopPropagation();gotoWeek(&quot;'+ds+'&quot;)">'+esc(entry.text)+'</span>';}
       else if(fer&&!isWE){inner='<span style="font-size:9px;color:#3B6D11;opacity:.6">'+ferieLabel(ds)+'</span>';}
       const dts=deptTermsForDate(ds);
-      if(dts.length)inner+=dts.map(t=>'<span class="deptpill" title="'+esc(t.dept+': '+(t.titleFull||t.title)+(t.time?' ('+t.time+')':''))+'" onclick="event.stopPropagation();openDeptManage(&quot;'+t.dept+'&quot;)">'+esc(t.dept)+': '+esc(t.title)+'</span>').join('');
+      if(dts.length)inner+=dts.map(t=>'<span class="deptpill" title="'+esc(t.dept+': '+(t.titleFull||t.title)+(t.time?' ('+t.time+')':''))+' — zur Woche springen" onclick="event.stopPropagation();gotoWeek(&quot;'+ds+'&quot;)">'+esc(t.dept)+': '+esc(t.title)+'</span>').join('');
       h+='<td class="'+cls+'" onclick="openHJAdd(&quot;'+ds+'&quot;)">'+inner+'</td>';
     });
     h+='</tr>';
@@ -915,6 +915,16 @@ function archiveSJ(){
 }
 function openHJAdd(ds){S.modal={type:'hj',ds};renderModal()}
 function openHJEdit(e,ds){e.stopPropagation();S.modal={type:'hj',ds};renderModal()}
+// Zur Woche des angegebenen Datums im Wochenplan springen (aus Halbjahr/Dialog).
+function gotoWeek(ds){
+  if(!ds)return;
+  const p=String(ds).split('-'); const dt=new Date(+p[0],(+p[1])-1,+p[2]);
+  if(isNaN(dt.getTime()))return;
+  S.week=getWeekNum(dt); S.year=dt.getFullYear();
+  S.mobileDay=Math.max(0,Math.min(4,(dt.getDay()+6)%7)); // Mo=0..Fr=4 (Wochenende -> Fr/Mo)
+  closeModal();
+  showView('woche');
+}
 
 /* ===== KLASSENBUCH ===== */
 function renderKlassen(c,ta){
@@ -1435,6 +1445,7 @@ function renderModal(){
       <div style="margin-bottom:12px"><div style="font-size:12px;color:var(--tx2);font-weight:500;margin-bottom:6px">Typ</div><div class="tchips">${chips}</div></div>
       <div class="field"><label>Bezeichnung</label><input type="text" id="hj-tx" value="${esc(entry.text||'')}" placeholder="z.B. Zeugniskonferenz, Notenabgabe..."></div>
       <div class="mfoot">${S.hjEntries[S.modal.ds]?`<button class="btn dan" onclick="delHJEntry()"><i class="ti ti-trash"></i></button>`:''}
+        <button class="btn" onclick="gotoWeek('${S.modal.ds}')"><i class="ti ti-calendar-week" aria-hidden="true"></i>Zur Woche</button>
         <button class="btn" onclick="closeModal()">Abbrechen</button>
         <button class="btn pri" onclick="saveHJEntry()"><i class="ti ti-check"></i>Speichern</button>
       </div></div>`;
