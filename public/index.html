@@ -290,6 +290,15 @@ td.ec.tdc{outline:1.5px solid var(--acbor);outline-offset:-1px}
   .btn{min-height:36px}
   .kltab,.kltab-edit,.segbtn{min-height:36px}
   .wg-day{min-height:44px}
+  /* Klassenbuch kompakter: schmalere Spalten, kleinere Punkte, kuerzere Kopfzeile. */
+  .kb-tbl th.namecol,.kb-tbl td.namecell{min-width:74px;max-width:110px;padding:4px 6px;font-size:11px}
+  .kb-tbl td.namecell>.sname{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .kb-tbl th{padding:4px 3px;font-size:9px}
+  .kb-tbl th.datecol{min-width:30px}
+  .kb-tbl td.datacell{width:30px;min-width:30px}
+  .kb-tbl .kbdot{width:22px;height:22px;border-radius:5px}
+  .kb-tbl td.trendcell{min-width:46px;padding:3px 2px}
+  .kb-legend{font-size:10px;gap:6px 10px}
 }
 </style>
 </head>
@@ -491,7 +500,7 @@ const S={
 // Abteilungen mit Terminplanung (Excel-Import).
 const DEPTS=['BG','BOS','SPA','BFS3','AVSH'];
 // App-Version (bei jedem Release mit dem Service-Worker-Cache hochzaehlen).
-const APP_VERSION='v17 · 03.07.2026';
+const APP_VERSION='v18 · 03.07.2026';
 // Zwischenspeicher + Service Worker leeren und neu laden -> holt garantiert den
 // neuesten Stand ("App aktualisieren"-Knopf). Loescht KEINE Nutzerdaten.
 async function forceUpdate(){
@@ -735,7 +744,7 @@ function renderWoche(c,ta){
       ?'<div style="font-size:9px;font-weight:500;color:'+( hjTypeColor[hHJ.type]||'#444')+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;padding:0 2px">'+esc(hHJ.text)+'</div>'
       :hFer?'<div style="font-size:9px;color:#3B6D11">'+ferieLabel(hds)+'</div>'
       :hFei?'<div style="font-size:9px;color:#8B2E2E">'+feiertagLabel(hds)+'</div>':'';
-    const hDept=deptTermsForDate(hds).map(t=>`<div class="wg-dept" title="${esc(t.dept+': '+(t.titleFull||t.title)+(t.time?' ('+t.time+')':'')+(t.betrifft?' — '+t.betrifft:''))}">${esc(t.dept+(t.time?' '+t.time:'')+': '+t.title)}</div>`).join('');
+    const hDept=deptTermsForDate(hds).map(t=>`<div class="wg-dept" style="cursor:pointer" title="${esc(t.dept+': '+(t.titleFull||t.title)+(t.time?' ('+t.time+')':'')+(t.betrifft?' — '+t.betrifft:''))}" onclick="event.stopPropagation();openDeptTermMenu('${t.id}','${hds}')">${esc(t.dept+(t.time?' '+t.time:'')+': '+t.title)}</div>`).join('');
     headers+=`<div class="wg-day ${isToday?'tod':''}"${hStyle}><div class="wg-dn">${DAYS[d]}</div><div class="wg-dd">${fmtDate(date)}</div>${hSub}${hDept}</div>`;
   }
 
@@ -886,7 +895,7 @@ function renderHalbjahr(c,ta){
       if(entry){inner='<span class="epill '+(pc[entry.type]||'ps')+'" title="Zur Woche springen (Tag antippen = bearbeiten)" onclick="event.stopPropagation();gotoWeek(&quot;'+ds+'&quot;)">'+esc(entry.text)+'</span>';}
       else if(fer&&!isWE){inner='<span style="font-size:9px;color:#3B6D11;opacity:.6">'+ferieLabel(ds)+'</span>';}
       const dts=deptTermsForDate(ds);
-      if(dts.length)inner+=dts.map(t=>'<span class="deptpill" title="'+esc(t.dept+': '+(t.titleFull||t.title)+(t.time?' ('+t.time+')':''))+' — zur Woche springen" onclick="event.stopPropagation();gotoWeek(&quot;'+ds+'&quot;)">'+esc(t.dept)+': '+esc(t.title)+'</span>').join('');
+      if(dts.length)inner+=dts.map(t=>'<span class="deptpill" title="'+esc(t.dept+': '+(t.titleFull||t.title)+(t.time?' ('+t.time+')':''))+'" onclick="event.stopPropagation();openDeptTermMenu(&quot;'+t.id+'&quot;,&quot;'+ds+'&quot;)">'+esc(t.dept)+': '+esc(t.title)+'</span>').join('');
       h+='<td class="'+cls+'" onclick="openHJAdd(&quot;'+ds+'&quot;)">'+inner+'</td>';
     });
     h+='</tr>';
@@ -980,13 +989,14 @@ ${allFaecher.length>0?`<div style='display:flex;gap:6px;margin-bottom:8px;align-
       // Show fach in header if no fach filter (showing all)
       const colKey=Object.keys(S.kbData).find(k=>k.startsWith(kl.id+'||'+kl.schueler[0]?.id+'||'+d));
       const colFach=colKey?colKey.split('||')[3]||'':'';
-      const colLbl=fmtD(d)+(colFach&&!S.selFach?'<br><span style="font-size:9px;color:var(--actx);font-weight:400">'+esc(colFach)+'</span>':'');
+      const pp=d.split('-'); const dlab=isPhone()?((+pp[2])+'.'+(+pp[1])+'.'):fmtD(d);
+      const colLbl=dlab+(colFach&&!S.selFach?'<br><span style="font-size:9px;color:var(--actx);font-weight:400">'+esc(colFach)+'</span>':'');
       tbl+=`<th class="datecol" title="Spalte löschen" onclick="confirmDelKbDate('${d}')">${colLbl}</th>`;
     });
     tbl+=`<th style="min-width:70px;text-align:center">Trend</th></tr></thead><tbody>`;
 
     kl.schueler.forEach(s=>{
-      tbl+=`<tr><td class="namecell" style="display:flex;align-items:center;justify-content:space-between;gap:4px">${esc(s.name)}<button onclick="deleteSuS('${s.id}')" title="Schüler/in löschen" style="background:transparent;border:none;cursor:pointer;color:var(--tx3);font-size:11px;padding:1px 3px;line-height:1;flex-shrink:0" onmouseover="this.style.color='var(--re)'" onmouseout="this.style.color='var(--tx3)'"><i class='ti ti-x'></i></button></td>`;
+      tbl+=`<tr><td class="namecell" style="display:flex;align-items:center;justify-content:space-between;gap:4px"><span class="sname" style="cursor:pointer;flex:1;min-width:0" onclick="openSchuelerTrend('${s.id}')" title="Verlauf für Gespräch anzeigen">${esc(s.name)}</span><button onclick="deleteSuS('${s.id}')" title="Schüler/in löschen" style="background:transparent;border:none;cursor:pointer;color:var(--tx3);font-size:11px;padding:1px 3px;line-height:1;flex-shrink:0" onmouseover="this.style.color='var(--re)'" onmouseout="this.style.color='var(--tx3)'"><i class='ti ti-x'></i></button></td>`;
       dates.forEach(d=>{
         const e=kbGet(S.selKlasse,s.id,d);
         const hasNote=e.note&&e.note.trim();
@@ -998,12 +1008,23 @@ ${allFaecher.length>0?`<div style='display:flex;gap:6px;margin-bottom:8px;align-
         </td>`;
       });
       const lastFive=dates.slice(-5).map(d=>`<span class="tb ${kbGet(S.selKlasse,s.id,d).color}"></span>`).join('');
-      tbl+=`<td class="trendcell"><div class="trend-bar">${lastFive}</div></td></tr>`;
+      tbl+=`<td class="trendcell" style="cursor:pointer" onclick="openSchuelerTrend('${s.id}')" title="Verlauf für Gespräch anzeigen"><div class="trend-bar">${lastFive}</div></td></tr>`;
     });
     tbl+='</tbody></table></div>';
   }
 
   c.innerHTML=tabs+tbl;
+}
+
+/* ===== EINZEL-VERLAUF (Trend einer/eines Schueler:in, fuer Gespraeche) ===== */
+function openSchuelerTrend(sid){S.modal={type:'schuelertrend',sid:sid};renderModal();}
+function druckeEinzelSchueler(sid){
+  const kl=S.klassen.find(k=>k.id===S.selKlasse);if(!kl)return;
+  const s=kl.schueler.find(x=>x.id===sid);if(!s)return;
+  const dates=kbDates(S.selKlasse,S.selFach);if(!dates.length){alert('Keine Termine zum Drucken.');return;}
+  let pr=document.getElementById('print-root');if(!pr){pr=document.createElement('div');pr.id='print-root';document.body.appendChild(pr);}
+  pr.innerHTML=buildStudentPP(kl,s,dates,true);
+  closeModal();document.body.classList.add('printing');window.print();
 }
 
 /* ===== DRUCKEN (Klassenbuch-Auszug: ganze Klasse oder einzelne:r Schueler:in) ===== */
@@ -1317,6 +1338,10 @@ function clearDept(dep){if(!confirm('Alle importierten '+dep+'-Termine entfernen
 function hideDeptTerm(id){S.deptHidden[id]=true;saveAll();render();}
 function unhideDeptTerm(id){delete S.deptHidden[id];saveAll();render();}
 function openDeptManage(dep){S.modal={type:'deptmanage',dept:dep};renderModal();}
+// Einen Abteilungs-Termin per ID finden (ueber alle Abteilungen).
+function findDeptTerm(id){for(const dep of DEPTS){const t=(S.deptTerms[dep]||[]).find(x=>x.id===id);if(t)return Object.assign({dept:dep},t);}return null;}
+// Kleines Menue beim Klick auf einen Abteilungs-Termin: zur Woche ODER ausblenden.
+function openDeptTermMenu(id,ds){S.modal={type:'deptterm',termId:id,ds:ds};renderModal();}
 // Aktive, nicht ausgeblendete Abteilungs-Termine für ein Datum.
 function deptTermsForDate(ds){
   const out=[];
@@ -1484,6 +1509,39 @@ function renderModal(){
         <button class="btn" onclick="closeModal()">Abbrechen</button>
         <button class="btn pri" onclick="doPrint()"><i class="ti ti-printer"></i>Drucken</button>
       </div></div>`;
+
+  } else if(type==='schuelertrend'){
+    const kl=S.klassen.find(k=>k.id===S.selKlasse);
+    const s=kl?.schueler.find(x=>x.id===S.modal.sid);
+    const dates=kbDates(S.selKlasse,S.selFach);
+    const fmt=d=>{const p=d.split('-');return p[2]+'.'+p[1]+'.'+p[0].slice(2)};
+    const order=['gruen','gelb','orange','rot','abwesend','unentschuldigt'];
+    const counts={};
+    const strip=dates.map(d=>{const e=kbGet(S.selKlasse,S.modal.sid,d);const col=e.color||'leer';counts[col]=(counts[col]||0)+1;return `<div style="display:flex;flex-direction:column;align-items:center;gap:3px;width:46px">${kbSwatchSVG(col,30)}<span style="font-size:9px;color:var(--tx2)">${fmt(d)}</span></div>`;}).join('');
+    const summ=order.filter(k=>counts[k]).map(k=>counts[k]+'× '+KB_TITLE[k]).join(' · ');
+    const rows=dates.map(d=>{const e=kbGet(S.selKlasse,S.modal.sid,d);const col=e.color||'leer';const note=e.note&&e.note.trim();return `<tr><td style="padding:4px 8px;border-bottom:.5px solid var(--bor);white-space:nowrap;color:var(--tx2);font-size:12px">${fmt(d)}</td><td style="padding:4px 8px;border-bottom:.5px solid var(--bor)"><span style="display:inline-flex;align-items:center;gap:6px;font-size:12px">${kbSwatchSVG(col,15)}${col==='leer'?'—':esc(KB_TITLE[col])}</span></td><td style="padding:4px 8px;border-bottom:.5px solid var(--bor);font-size:12px;color:var(--tx2)">${note?esc(e.note):''}</td></tr>`;}).join('');
+    html=`<div class="modal" style="max-width:600px"><div class="mhd"><div class="mtit">Verlauf · ${esc(s?.name||'')}</div><button class="btn ico" onclick="closeModal()"><i class="ti ti-x"></i></button></div>
+      <div style="font-size:12px;color:var(--tx2);margin-bottom:10px">${esc(kl?.name||'')}${S.selFach?' · '+esc(S.selFach):''}${summ?' · <b style="color:var(--tx)">'+summ+'</b>':''}</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;max-height:32vh;overflow:auto">${strip||'<span style="color:var(--tx3);font-size:12px">Noch keine Einträge.</span>'}</div>
+      <div style="max-height:36vh;overflow:auto"><table style="width:100%;border-collapse:collapse"><thead><tr><th style="text-align:left;padding:4px 8px;font-size:11px;color:var(--tx2)">Datum</th><th style="text-align:left;padding:4px 8px;font-size:11px;color:var(--tx2)">Bewertung</th><th style="text-align:left;padding:4px 8px;font-size:11px;color:var(--tx2)">Notiz</th></tr></thead><tbody>${rows}</tbody></table></div>
+      <div class="mfoot"><button class="btn" onclick="druckeEinzelSchueler('${S.modal.sid}')"><i class="ti ti-printer" aria-hidden="true"></i>Drucken</button><button class="btn pri" onclick="closeModal()">Schließen</button></div></div>`;
+
+  } else if(type==='deptterm'){
+    const t=findDeptTerm(S.modal.termId);
+    if(!t){
+      html=`<div class="modal"><div class="mhd"><div class="mtit">Termin</div><button class="btn ico" onclick="closeModal()"><i class="ti ti-x"></i></button></div><p style="color:var(--tx2);font-size:13px">Termin nicht gefunden.</p><div class="mfoot"><button class="btn pri" onclick="closeModal()">OK</button></div></div>`;
+    } else {
+      const p=String(t.date).split('-'); const dlbl=p[2]+'.'+p[1]+'.'+p[0];
+      html=`<div class="modal" style="max-width:460px"><div class="mhd"><div class="mtit">${esc(t.dept)}-Termin</div><button class="btn ico" onclick="closeModal()"><i class="ti ti-x"></i></button></div>
+        <div style="font-size:14px;font-weight:500;margin-bottom:3px">${esc(t.titleFull||t.title)}</div>
+        <div style="font-size:12px;color:var(--tx2);margin-bottom:14px">${dlbl}${t.time?' · '+esc(t.time):''}${t.betrifft?' · '+esc(t.betrifft):''}</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <button class="btn pri" onclick="gotoWeek('${S.modal.ds}')"><i class="ti ti-calendar-week" aria-hidden="true"></i>Zur Woche im Wochenplan</button>
+          <button class="btn" onclick="closeModal();hideDeptTerm('${t.id}')"><i class="ti ti-eye-off" aria-hidden="true"></i>Diesen Termin für mich ausblenden</button>
+          <button class="btn" onclick="openDeptManage('${t.dept}')"><i class="ti ti-list-details" aria-hidden="true"></i>Alle ${esc(t.dept)}-Termine verwalten</button>
+        </div>
+        <div class="mfoot"><button class="btn" onclick="closeModal()">Schließen</button></div></div>`;
+    }
 
   } else if(type==='deptmanage'){
     const dep=S.modal.dept;
