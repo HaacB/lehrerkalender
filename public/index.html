@@ -123,6 +123,8 @@ td.ec.fei{background:#FCEAEA}
 td.ec.fei:hover{background:#f5d5d5}
 td.ec.emp{background:var(--sur2);opacity:.2;cursor:default}
 td.ec.tdc{outline:1.5px solid var(--acbor);outline-offset:-1px}
+.cdow{display:block;font-size:8px;font-weight:500;color:var(--tx3);line-height:1.3}
+.cdow.we{opacity:.6}
 .epill{display:inline-block;border-radius:2px;padding:1px 4px;font-size:10px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;line-height:1.4;cursor:pointer}
 .deptpill{display:inline-block;background:#EEEDFE;color:#3C3489;border:.5px solid #AFA9EC;border-radius:2px;padding:0 3px;font-size:9px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;line-height:1.5;margin-top:1px;cursor:pointer}
 .wg-dept{font-size:9px;color:#3C3489;background:#EEEDFE;border:.5px solid #CECBF6;border-radius:2px;padding:0 2px;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
@@ -299,6 +301,15 @@ td.ec.tdc{outline:1.5px solid var(--acbor);outline-offset:-1px}
   .kb-tbl .kbdot{width:22px;height:22px;border-radius:5px}
   .kb-tbl td.trendcell{min-width:46px;padding:3px 2px}
   .kb-legend{font-size:10px;gap:6px 10px}
+  /* Halbjahresplaner: statt 6 gequetschter Spalten lieber ~3 lesbare, Rest seitlich wischen */
+  .hjtbl{table-layout:auto;width:auto}
+  .hjtbl th.mc,.hjtbl td.ec{min-width:112px}
+  .hjtbl th.dc,td.dnum{min-width:30px}
+  .hjtbl th.mc{font-size:13px}
+  td.dnum{font-size:12px}
+  .cdow{font-size:10px}
+  .epill{font-size:11px;padding:2px 5px}
+  .deptpill{font-size:10px}
 }
 </style>
 </head>
@@ -877,26 +888,25 @@ function renderHalbjahr(c,ta){
     +'</div><div style="overflow-x:auto"><table class="hjtbl"><thead><tr><th class="dc"></th>';
   months.forEach(({y,m})=>{h+='<th class="mc">'+MONTHS[m]+'<br><span style="font-size:10px;font-weight:400;color:var(--tx3)">'+y+'</span></th>';});
   h+='</tr></thead><tbody>';
+  const dayL=['Mo','Di','Mi','Do','Fr','Sa','So'];
   for(let d=1;d<=maxD;d++){
     const valid=months.filter(({y,m})=>d<=daysInMonth(y,m));
     if(!valid.length)continue;
-    const {y:fy,m:fm}=valid[0];
-    const dw0=dow(fy,fm,d);
-    const isWE=dw0>=5;
-    const dayL=['Mo','Di','Mi','Do','Fr','Sa','So'];
     const isTodayRow=months.some(({y,m})=>dStr(y,m,d)===today);
-    h+='<tr><td class="dnum'+(isWE?' we':'')+(isTodayRow?' tdn':'')+'">'+d+'<br><span style="font-size:9px">'+dayL[dw0]+'</span></td>';
+    h+='<tr><td class="dnum'+(isTodayRow?' tdn':'')+'">'+d+'</td>';
     months.forEach(({y,m})=>{
       if(d>daysInMonth(y,m)){h+='<td class="ec emp"></td>';return;}
       const ds=dStr(y,m,d);
+      const dw0=dow(y,m,d);
+      const isWE=dw0>=5;
       const fer=isFerie(ds);
             const entry=S.hjEntries[ds];
       let cls='ec';
       if(isWE)cls+=' we';if(fer)cls+=' fer';if(ds===today)cls+=' tdc';
       const pc={konferenz:'pk',deadline:'pd',termin:'pt',frei:'pf',sonstiges:'ps'};
-      let inner='';
-      if(entry){inner='<span class="epill '+(pc[entry.type]||'ps')+'" title="Zur Woche springen (Tag antippen = bearbeiten)" onclick="event.stopPropagation();gotoWeek(&quot;'+ds+'&quot;)">'+esc(entry.text)+'</span>';}
-      else if(fer&&!isWE){inner='<span style="font-size:9px;color:#3B6D11;opacity:.6">'+ferieLabel(ds)+'</span>';}
+      let inner='<span class="cdow'+(isWE?' we':'')+'">'+dayL[dw0]+' '+d+'.</span>';
+      if(entry){inner+='<span class="epill '+(pc[entry.type]||'ps')+'" title="Zur Woche springen (Tag antippen = bearbeiten)" onclick="event.stopPropagation();gotoWeek(&quot;'+ds+'&quot;)">'+esc(entry.text)+'</span>';}
+      else if(fer&&!isWE){inner+='<span style="font-size:9px;color:#3B6D11;opacity:.6">'+ferieLabel(ds)+'</span>';}
       const dts=deptTermsForDate(ds);
       if(dts.length)inner+=dts.map(t=>'<span class="deptpill" title="'+esc(t.dept+': '+(t.titleFull||t.title)+(t.time?' ('+t.time+')':''))+'" onclick="event.stopPropagation();openDeptTermMenu(&quot;'+t.id+'&quot;,&quot;'+ds+'&quot;)">'+esc(t.dept)+': '+esc(t.title)+'</span>').join('');
       h+='<td class="'+cls+'" onclick="openHJAdd(&quot;'+ds+'&quot;)">'+inner+'</td>';
