@@ -7,8 +7,10 @@ const helmet = require('helmet');
 
 const { config, validate } = require('./config');
 const { createSessionStore } = require('./sessionStore');
-const { loginHandler, logoutHandler, requireAuth } = require('./auth');
+const { loginHandler, logoutHandler, requireAuth, authConfigHandler } = require('./auth');
+const sso = require('./auth/sso');
 const stateRoutes = require('./routes/state');
+const notenRoutes = require('./routes/noten');
 const { init: initDb, closeAll } = require('./db/userDb');
 
 validate();
@@ -75,10 +77,15 @@ app.use(
 );
 
 // ── Auth-Endpunkte ─────────────────────────────────────────────────────
+app.get('/auth/config', authConfigHandler); // öffentlich: was bietet die Login-Seite an
 app.post('/auth/login', loginHandler);
 app.post('/auth/logout', logoutHandler);
+// Single Sign-on über die Notenverwaltung (nur aktiv bei AUTH_MODE=sso).
+app.get('/auth/sso/start', sso.startHandler);
+app.get('/auth/sso/callback', sso.callbackHandler);
 
 // ── API (geschützt) ────────────────────────────────────────────────────
+app.use('/api/noten', requireAuth, notenRoutes);
 app.use('/api', requireAuth, stateRoutes);
 
 // ── Statische Dateien / PWA ────────────────────────────────────────────

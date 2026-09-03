@@ -1,0 +1,830 @@
+diff --git a/README.md b/README.md
+index ccf0cb1..541f1c3 100644
+--- a/README.md
++++ b/README.md
+@@ -542,6 +542,70 @@ gebunden) oder als **Notenkonferenz-Entscheidung** (klassenweit, fachübergreife
+ sichtbar). Alle Notizen einer Schüler/in erscheinen in der
+ Halbjahresübersicht der Klassenleitung.
+ 
++## Single Sign-on für den Lehrerkalender
++
++Diese App ist der **Anmeldedienst** für den Lehrerkalender
++(`HaacB/lehrerkalender`): Wer hier angemeldet ist, kommt ohne zweite
++Anmeldung in den Kalender. Umgekehrt schickt der Kalender Unangemeldete
++hierher, sodass es schulweit **eine** Anmeldemaske gibt — die dieser App.
++
++### Ablauf
++
++```
++Kalender  ──GET /sso/authorize?client_id&redirect_uri&state──▶  Notenverwaltung
++                                                                 │ (ggf. /login)
++Kalender  ◀──302 redirect_uri?code=<Einmal-Code>&state──────────┘
++Kalender  ──POST /sso/token {client_id, client_secret, code}───▶  (server-zu-server)
++Kalender  ◀──{ sub, username, name, rolle }─────────────────────┘
++```
++
++Der Code ist **einmalig**, 60 Sekunden gültig und liegt nur als
++SHA-256-Hash in `sso_codes`. `redirect_uri` muss exakt in
++`SSO_REDIRECT_URIS` stehen — eine unbekannte Adresse wird nie angesprungen.
++
++### Kennung (`sub`)
++
++| Kontotyp | `sub` |
++|----------|-------|
++| AD/LDAP  | `login_sub` (sAMAccountName), kleingeschrieben |
++| lokal (Einladungslink) | `nv:` + Benutzername, kleingeschrieben |
++
++Der Kalender leitet daraus Dateiname und Schlüssel seiner
++Pro-Nutzer-Datenbank ab. Bei AD-Konten ist das exakt die Kennung, die er
++bisher aus seinem eigenen LDAP-Login gewonnen hat — bestehende
++Kalenderdaten bleiben nach der Umstellung also erreichbar. Das `nv:`-Präfix
++bei lokalen Konten kann nie mit einer AD-Kennung kollidieren (`:` ist im
++sAMAccountName nicht erlaubt).
++
++### Lese-Schnittstelle für die Klassen-Verknüpfung
++
++Ebenfalls server-zu-server, mit demselben Geheimnis als Bearer-Token und
++der Kennung der Lehrkraft in `X-Noten-Sub`:
++
++| Endpunkt | Antwort |
++|----------|---------|
++| `GET /api/extern/ping` | `{ ok, app, version }` |
++| `GET /api/extern/klassen` | Klassen der Lehrkraft mit Fächern, Schuljahr, Schülerzahl, Rolle |
++| `GET /api/extern/klassen/:id` | dieselbe Klasse **plus** Schülerliste (`nachname`, `vorname`) |
++
++Herausgegeben wird nur, worauf die Lehrkraft auch in der Oberfläche Zugriff
++hätte (dieselben Helfer aus `src/auth.js`). **Noten werden bewusst nicht
++geliefert:** Der Kalender verknüpft Klassen und verlinkt in die Notentafel
++(`/teacher/fach/:id`, `/teacher/klassen/:id`) — Quelle der Noten bleibt
++diese App.
++
++### Einrichtung
++
++```
++SSO_CLIENT_SECRET=<openssl rand -base64 32>          # identisch im Kalender
++SSO_REDIRECT_URIS=https://kalender.bbz-rd-eck.com/auth/sso/callback
++LEHRERKALENDER_URL=https://kalender.bbz-rd-eck.com   # optional: Navigationslink
++```
++
++Ohne `SSO_CLIENT_SECRET`/`SSO_REDIRECT_URIS` sind `/sso/*` und
++`/api/extern/*` abgeschaltet (404) — die App verhält sich dann exakt wie
++vorher.
++
+ ## Deployment auf Plesk (noten.bbz-rd-eck.com)
+ 
+ Plesk-Web-Admin-Edition hat **kein** Python/Passenger für Flask. Wir nutzen
+@@ -663,6 +727,8 @@ webapp/
+ │   ├── grade-calc.js   # Notenberechnung (portiert aus grade_calc.py)
+ │   ├── routes/
+ │   │   ├── auth.js     # /login, /logout, /setup, /einladung/<token>
++│   │   ├── sso.js      # /sso/authorize, /sso/token (Lehrerkalender-SSO)
++│   │   ├── api-extern.js # /api/extern/* (Klassen/Schüler für den Kalender)
+ │   │   ├── admin.js    # Schuljahre, Klassen, Schüler, Fächer, …
+ │   │   ├── teacher.js  # Notentafel, Klausuren, ULs, AJAX-API
+ │   │   ├── klassenlehrer.js  # Fehlzeiten
+@@ -694,6 +760,10 @@ webapp/
+ | `DB_PFAD`     | `data/noten.sqlite3`          | Pfad zur SQLite-Datei              |
+ | `PUBLIC_URL`  | `http(s)://Host:Port`         | Basis-URL für Einladungslinks      |
+ | `NODE_ENV`    | (nicht gesetzt)               | `production` für kompaktes Logging |
++| `SSO_CLIENT_ID`     | `lehrerkalender`        | Kennung der Partner-App (Lehrerkalender) |
++| `SSO_CLIENT_SECRET` | (leer = SSO aus)        | gemeinsames Geheimnis, identisch im Kalender als `NOTEN_CLIENT_SECRET` |
++| `SSO_REDIRECT_URIS` | (leer = SSO aus)        | erlaubte Rücksprungadressen, kommagetrennt |
++| `LEHRERKALENDER_URL`| (nicht gesetzt)         | Basis-URL des Kalenders → Link in der Navigation |
+ 
+ ## Backup
+ 
+diff --git a/app.js b/app.js
+index c2d6d7a..166e635 100644
+--- a/app.js
++++ b/app.js
+@@ -26,6 +26,7 @@ import { readFile } from 'node:fs/promises';
+ import { readFileSync } from 'node:fs';
+ 
+ import { getDb } from './src/db.js';
++import { ssoConfig } from './src/sso.js';
+ import { authPreHandler, SESSION_COOKIE, istIrgendeineKlassenleitung } from './src/auth.js';
+ import { SqliteSessionStore } from './src/auth/sqlite-session-store.js';
+ import {
+@@ -40,6 +41,8 @@ import exportRoutes from './src/routes/export.js';
+ import sitzplanRoutes from './src/routes/sitzplan.js';
+ import untisImportRoutes from './src/routes/untis-import.js';
+ import startRoutes from './src/routes/start.js';
++import ssoRoutes from './src/routes/sso.js';
++import apiExternRoutes from './src/routes/api-extern.js';
+ 
+ const __dirname = path.dirname(fileURLToPath(import.meta.url));
+ const isProd = process.env.NODE_ENV === 'production';
+@@ -147,6 +150,9 @@ export async function buildApp(opts = {}) {
+     // und Klassenleitung — einmal pro Request berechnet statt in der
+     // Layout-Vorlage selbst eine DB-Abfrage zu brauchen.
+     reply.locals.kannEinladen = request.user ? istIrgendeineKlassenleitung(request.user) : false;
++    // Link "Lehrerkalender" in der Navigation, sobald LEHRERKALENDER_URL gesetzt
++    // ist — dank SSO ohne zweite Anmeldung (siehe src/sso.js).
++    reply.locals.kalenderUrl = ssoConfig().kalenderUrl || null;
+     const pending = request.session?.flash;
+     reply.locals.flash = pending && pending.length ? pending : null;
+     if (pending && pending.length) request.session.flash = [];
+@@ -172,6 +178,9 @@ export async function buildApp(opts = {}) {
+   await app.register(untisImportRoutes, { prefix: '/teacher' });
+   await app.register(klassenlehrerRoutes, { prefix: '/klassenlehrer' });
+   await app.register(exportRoutes, { prefix: '/export' });
++  // Single Sign-on + Lese-Schnittstelle für den Lehrerkalender (src/sso.js).
++  await app.register(ssoRoutes, { prefix: '/sso' });
++  await app.register(apiExternRoutes, { prefix: '/api/extern' });
+ 
+   app.setNotFoundHandler((request, reply) => {
+     reply.code(404).viewEjs('error', { code: 404, message: 'Seite nicht gefunden.' });
+diff --git a/src/db.js b/src/db.js
+index ec71e82..cc68a2d 100644
+--- a/src/db.js
++++ b/src/db.js
+@@ -20,7 +20,7 @@ const DEFAULT_DB_PATH = path.join(__dirname, '..', 'data', 'noten.sqlite3');
+ export const DB_PATH = process.env.DB_PFAD || DEFAULT_DB_PATH;
+ 
+ // Schema-Version für Migrationen
+-export const SCHEMA_VERSION = 12;
++export const SCHEMA_VERSION = 13;
+ 
+ const SCHEMA = `
+ CREATE TABLE IF NOT EXISTS users (
+@@ -430,6 +430,21 @@ CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at);
+ -- Weile gesperrt, jede weitere fehlgeschlagene Anmeldung danach verdoppelt
+ -- die Sperrdauer (exponentieller Backoff gegen automatisiertes
+ -- Durchprobieren von Passwörtern).
++-- Einmal-Codes für Single Sign-on von Schwester-Apps (src/sso.js): Der
++-- Lehrerkalender schickt Lehrkräfte zum Anmelden hierher und tauscht danach
++-- server-zu-server einen 60 Sekunden gültigen Code gegen die Identität ein.
++-- Gespeichert wird nur der SHA-256-Hash des Codes — ein Blick in die DB
++-- erlaubt also kein Nachspielen. Der Code wird beim Einlösen gelöscht.
++CREATE TABLE IF NOT EXISTS sso_codes (
++    code_hash TEXT PRIMARY KEY,
++    client_id TEXT NOT NULL,
++    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
++    redirect_uri TEXT NOT NULL,
++    expires_at INTEGER NOT NULL,
++    created_at TEXT NOT NULL DEFAULT (datetime('now'))
++);
++CREATE INDEX IF NOT EXISTS idx_sso_codes_expires_at ON sso_codes(expires_at);
++
+ CREATE TABLE IF NOT EXISTS login_ratelimit (
+     schluessel TEXT PRIMARY KEY,
+     fehlversuche INTEGER NOT NULL DEFAULT 0,
+diff --git a/src/routes/api-extern.js b/src/routes/api-extern.js
+new file mode 100644
+index 0000000..65ef981
+--- /dev/null
++++ b/src/routes/api-extern.js
+@@ -0,0 +1,129 @@
++/**
++ * Lese-Schnittstelle für Schwester-Apps (Lehrerkalender): Klassen, Fächer und
++ * Schülerlisten der jeweiligen Lehrkraft.
++ *
++ * Authentisierung: NICHT per Session/Cookie, sondern server-zu-server —
++ *   Authorization: Bearer <SSO_CLIENT_SECRET>
++ *   X-Noten-Sub:   <Kennung der Lehrkraft, siehe src/sso.js>
++ * Damit gibt es kein CORS und keine Dritt-Cookies (die Safari blockt); der
++ * Kalender-Server ruft im Namen der angemeldeten Lehrkraft ab.
++ *
++ * Herausgegeben werden nur Daten, auf die diese Lehrkraft auch in der
++ * Oberfläche Zugriff hätte (dieselben Helfer aus src/auth.js). Noten werden
++ * hier bewusst NICHT geliefert: Der Kalender verknüpft nur Klassen und
++ * verlinkt in die Notentafel — Quelle der Noten bleibt diese App.
++ */
++
++import { getDb, SCHEMA_VERSION } from '../db.js';
++import {
++  ladeMeineKlassen, userHatKlassenZugriff, userIstKlassenlehrer, userHatFachZgriff,
++} from '../auth.js';
++import { bearerPasst, userAusSub, istSsoAktiv } from '../sso.js';
++
++/** users-Zeile in die Form bringen, die die Berechtigungs-Helfer erwarten. */
++function alsUser(zeile) {
++  return {
++    id: zeile.id,
++    username: zeile.username,
++    role: zeile.role,
++    displayName: zeile.display_name,
++    isAdmin: zeile.role === 'admin',
++    authSource: zeile.auth_source,
++  };
++}
++
++/**
++ * Fächer einer Klasse, die diese Lehrkraft öffnen darf: bei Klassenleitung,
++ * Ersteller/in oder Admin alle, sonst nur die zugewiesenen.
++ */
++function faecherFuer(user, klasse) {
++  const db = getDb();
++  const alle = db
++    .prepare('SELECT id, name, abgeschlossen FROM faecher WHERE klasse_id = ? ORDER BY name')
++    .all(klasse.id);
++  const alleSehen =
++    user.isAdmin || klasse.created_by_id === user.id || userIstKlassenlehrer(user, klasse.id);
++  const sichtbar = alleSehen ? alle : alle.filter((f) => userHatFachZgriff(user, f.id));
++  return sichtbar.map((f) => ({ id: f.id, name: f.name, abgeschlossen: Boolean(f.abgeschlossen) }));
++}
++
++function klasseNachAussen(user, k) {
++  const db = getDb();
++  const anzahl = db
++    .prepare('SELECT COUNT(*) AS c FROM schueler WHERE klasse_id = ?')
++    .get(k.id).c;
++  return {
++    id: k.id,
++    name: k.name,
++    schuljahr: k.schuljahr_bezeichnung || null,
++    schuljahrId: k.schuljahr_id,
++    zweiSchulen: Boolean(k.zwei_schulen),
++    schuelerAnzahl: anzahl,
++    rolle: {
++      ersteller: k.created_by_id === user.id,
++      klassenleitung: userIstKlassenlehrer(user, k.id),
++    },
++    faecher: faecherFuer(user, k),
++  };
++}
++
++export default async function apiExternRoutes(fastify) {
++  // Gemeinsame Vorprüfung: Geheimnis, danach die handelnde Lehrkraft auflösen.
++  fastify.addHook('preHandler', async (request, reply) => {
++    if (!istSsoAktiv()) {
++      return reply.code(404).send({ error: 'Schnittstelle nicht eingerichtet' });
++    }
++    if (!bearerPasst(request.headers.authorization)) {
++      request.log.warn({ url: request.url }, 'api-extern: falsches oder fehlendes Geheimnis');
++      return reply.code(401).send({ error: 'Nicht autorisiert' });
++    }
++    // /ping braucht keine Person.
++    if (request.url.startsWith('/api/extern/ping')) return;
++
++    const sub = request.headers['x-noten-sub'];
++    if (!sub) return reply.code(400).send({ error: 'X-Noten-Sub fehlt' });
++    const zeile = userAusSub(sub);
++    if (!zeile) {
++      return reply.code(404).send({
++        error: 'Zu dieser Kennung gibt es hier kein aktives Konto. ' +
++          'Bitte einmal in der Notenverwaltung anmelden.',
++      });
++    }
++    request.externUser = alsUser(zeile);
++  });
++
++  // ---------- GET /api/extern/ping ----------
++  fastify.get('/ping', async () => ({
++    ok: true,
++    app: 'notenverwaltung',
++    version: SCHEMA_VERSION,
++  }));
++
++  // ---------- GET /api/extern/klassen ----------
++  fastify.get('/klassen', async (request) => {
++    const user = request.externUser;
++    const klassen = ladeMeineKlassen(user.id).map((k) => klasseNachAussen(user, k));
++    return { sub: user.username, klassen };
++  });
++
++  // ---------- GET /api/extern/klassen/:id ----------
++  fastify.get('/klassen/:id', async (request, reply) => {
++    const user = request.externUser;
++    const id = parseInt(request.params.id, 10);
++    if (!id) return reply.code(400).send({ error: 'Ungültige Klassen-ID' });
++    const db = getDb();
++    const k = db
++      .prepare(`SELECT k.*, s.bezeichnung AS schuljahr_bezeichnung
++                FROM klassen k JOIN schuljahre s ON s.id = k.schuljahr_id
++                WHERE k.id = ?`)
++      .get(id);
++    if (!k) return reply.code(404).send({ error: 'Klasse nicht gefunden' });
++    if (!userHatKlassenZugriff(user, k.id)) {
++      return reply.code(403).send({ error: 'Kein Zugriff auf diese Klasse' });
++    }
++    const schueler = db
++      .prepare('SELECT id, nachname, vorname FROM schueler WHERE klasse_id = ? ORDER BY nachname, vorname')
++      .all(k.id);
++    return { klasse: { ...klasseNachAussen(user, k), schueler } };
++  });
++}
+diff --git a/src/routes/sso.js b/src/routes/sso.js
+new file mode 100644
+index 0000000..09ae4b2
+--- /dev/null
++++ b/src/routes/sso.js
+@@ -0,0 +1,83 @@
++/**
++ * SSO-Endpunkte für Schwester-Apps (Lehrerkalender).
++ *
++ *   GET  /sso/authorize   – Anmeldung hier, Einmal-Code zurück an die App
++ *   POST /sso/token       – Einmal-Code gegen die Identität tauschen (server-zu-server)
++ *
++ * Siehe src/sso.js für den Ablauf, die Kennung (`sub`) und die ENV-Variablen.
++ */
++
++import {
++  ssoConfig, istSsoAktiv, geheimnisPasst, redirectUriErlaubt,
++  subFuerUser, erzeugeCode, loeseCodeEin,
++} from '../sso.js';
++
++export default async function ssoRoutes(fastify) {
++  // ---------- GET /sso/authorize ----------
++  fastify.get('/authorize', async (request, reply) => {
++    if (!istSsoAktiv()) {
++      return reply.code(404).viewEjs('error.ejs', {
++        code: 404,
++        message: 'Single Sign-on ist auf diesem Server nicht eingerichtet.',
++      });
++    }
++    const cfg = ssoConfig();
++    const { client_id: clientId, redirect_uri: redirectUri, state, response_type: responseType } =
++      request.query || {};
++
++    // Ungültige Rücksprungadresse NIEMALS anspringen (sonst wäre der Code an
++    // eine fremde Adresse ausleitbar) — hier bleibt es bei einer Fehlerseite.
++    if (clientId !== cfg.clientId || !redirectUriErlaubt(redirectUri)) {
++      request.log.warn({ clientId, redirectUri }, 'SSO: unbekannter Client oder redirect_uri');
++      return reply.code(400).viewEjs('error.ejs', {
++        code: 400,
++        message: 'Diese App ist für die Anmeldung nicht freigegeben.',
++      });
++    }
++    if (responseType && responseType !== 'code') {
++      return reply.redirect(`${redirectUri}?error=unsupported_response_type&state=${encodeURIComponent(state || '')}`);
++    }
++
++    // Noch nicht angemeldet? Erst der normale Login, danach zurück hierher.
++    if (!request.user) {
++      return reply.redirect('/login?next=' + encodeURIComponent(request.url));
++    }
++
++    const code = erzeugeCode({
++      userId: request.user.id,
++      clientId: cfg.clientId,
++      redirectUri,
++    });
++    const ziel =
++      `${redirectUri}?code=${encodeURIComponent(code)}` +
++      (state ? `&state=${encodeURIComponent(state)}` : '');
++    return reply.redirect(ziel);
++  });
++
++  // ---------- POST /sso/token ----------
++  fastify.post('/token', async (request, reply) => {
++    if (!istSsoAktiv()) return reply.code(404).send({ error: 'SSO nicht eingerichtet' });
++    const cfg = ssoConfig();
++    const {
++      client_id: clientId, client_secret: clientSecret, code, redirect_uri: redirectUri,
++    } = request.body || {};
++
++    if (clientId !== cfg.clientId || !geheimnisPasst(clientSecret)) {
++      request.log.warn({ clientId }, 'SSO: Tokentausch mit falschem Geheimnis');
++      return reply.code(401).send({ error: 'client_id oder client_secret falsch' });
++    }
++    let user;
++    try {
++      user = loeseCodeEin({ code, clientId, redirectUri });
++    } catch (e) {
++      return reply.code(e.status || 400).send({ error: e.message });
++    }
++    return reply.send({
++      sub: subFuerUser(user),
++      username: user.username,
++      name: user.display_name || user.username,
++      rolle: user.role,
++      auth_source: user.auth_source,
++    });
++  });
++}
+diff --git a/src/sso.js b/src/sso.js
+new file mode 100644
+index 0000000..8c06296
+--- /dev/null
++++ b/src/sso.js
+@@ -0,0 +1,160 @@
++/**
++ * Single Sign-on und Schnittstelle für Schwester-Apps (derzeit: Lehrerkalender).
++ *
++ * Diese App ist der Anmeldedienst: Wer hier angemeldet ist, kommt ohne zweite
++ * Anmeldung in den Lehrerkalender. Der Ablauf ist ein bewusst schlanker
++ * Authorization-Code-Flow mit gemeinsamem Geheimnis (beide Apps gehören
++ * derselben Schule und sprechen über HTTPS):
++ *
++ *   1. Kalender -> GET  /sso/authorize?client_id&redirect_uri&state
++ *                  (ist hier niemand angemeldet, erscheint erst /login)
++ *   2. wir      -> Weiterleitung an redirect_uri?code=<Einmal-Code>&state=…
++ *   3. Kalender -> POST /sso/token  (server-zu-server, mit dem Geheimnis)
++ *                  Antwort: { sub, username, name, rolle }
++ *
++ * Der Code ist einmalig, 60 s gültig und wird nur als SHA-256-Hash gespeichert
++ * — ein Blick in die Datenbank erlaubt also kein Nachspielen.
++ *
++ * `sub` ist die stabile Kennung der Lehrkraft:
++ *   - AD-Konten:    kleingeschriebener login_sub (sAMAccountName)
++ *   - lokale Konten: "nv:" + kleingeschriebener Benutzername
++ * Bei AD-Konten ist das exakt die Kennung, die der Lehrerkalender bisher aus
++ * dem LDAP-Login gewonnen hat — bestehende Kalenderdaten bleiben dadurch
++ * nach der SSO-Umstellung erreichbar.
++ *
++ * Konfiguration (ENV):
++ *   SSO_CLIENT_ID       Kennung der Partner-App          (Default 'lehrerkalender')
++ *   SSO_CLIENT_SECRET   gemeinsames Geheimnis            (Pflicht, sonst ist SSO aus)
++ *   SSO_REDIRECT_URIS   erlaubte Rücksprungadressen, kommagetrennt (Pflicht)
++ *   LEHRERKALENDER_URL  Basis-URL für den Link "Lehrerkalender" in der Navigation
++ */
++
++import crypto from 'node:crypto';
++import { getDb } from './db.js';
++
++const CODE_TTL_MS = 60 * 1000; // Einmal-Code: 60 Sekunden
++
++export function ssoConfig() {
++  return {
++    clientId: process.env.SSO_CLIENT_ID || 'lehrerkalender',
++    clientSecret: process.env.SSO_CLIENT_SECRET || '',
++    redirectUris: (process.env.SSO_REDIRECT_URIS || '')
++      .split(',')
++      .map((s) => s.trim())
++      .filter(Boolean),
++    kalenderUrl: (process.env.LEHRERKALENDER_URL || '').replace(/\/+$/, ''),
++  };
++}
++
++/** Ist SSO/die Kalender-Schnittstelle eingerichtet? */
++export function istSsoAktiv() {
++  const c = ssoConfig();
++  return Boolean(c.clientSecret && c.redirectUris.length);
++}
++
++/** Zeitkonstanter Vergleich (verhindert Timing-Rückschlüsse aufs Geheimnis). */
++export function geheimnisPasst(uebergeben) {
++  const soll = ssoConfig().clientSecret;
++  if (!soll || !uebergeben) return false;
++  const a = Buffer.from(String(uebergeben));
++  const b = Buffer.from(soll);
++  if (a.length !== b.length) return false;
++  return crypto.timingSafeEqual(a, b);
++}
++
++/** Prüft den Bearer-Token aus dem Authorization-Header. */
++export function bearerPasst(authorizationHeader) {
++  const m = /^Bearer\s+(.+)$/i.exec(String(authorizationHeader || ''));
++  return m ? geheimnisPasst(m[1]) : false;
++}
++
++/** Ist die Rücksprungadresse für diesen Client freigegeben? (exakter Vergleich) */
++export function redirectUriErlaubt(uri) {
++  return ssoConfig().redirectUris.includes(String(uri || ''));
++}
++
++/** Stabile Kennung einer Lehrkraft für die Partner-App. */
++export function subFuerUser(user) {
++  const quelle = user.auth_source || user.authSource || 'lokal';
++  if (quelle === 'ldap') {
++    return String(user.login_sub || user.username).trim().toLowerCase();
++  }
++  return 'nv:' + String(user.username).trim().toLowerCase();
++}
++
++/**
++ * Löst eine Kennung (`sub`) wieder in das Konto auf — Gegenstück zu
++ * subFuerUser(). Nur aktive Konten. Rückgabe: users-Zeile oder null.
++ */
++export function userAusSub(sub) {
++  const s = String(sub || '').trim().toLowerCase();
++  if (!s) return null;
++  const db = getDb();
++  if (s.startsWith('nv:')) {
++    const name = s.slice(3);
++    return (
++      db
++        .prepare(
++          `SELECT * FROM users
++           WHERE username = ? COLLATE NOCASE AND auth_source <> 'ldap' AND active = 1`,
++        )
++        .get(name) || null
++    );
++  }
++  return (
++    db
++      .prepare(
++        `SELECT * FROM users
++         WHERE active = 1 AND auth_source = 'ldap'
++           AND (login_sub = ? COLLATE NOCASE OR username = ? COLLATE NOCASE)
++         ORDER BY (login_sub = ? COLLATE NOCASE) DESC
++         LIMIT 1`,
++      )
++      .get(s, s, s) || null
++  );
++}
++
++function hash(code) {
++  return crypto.createHash('sha256').update(code).digest('hex');
++}
++
++/**
++ * Erzeugt einen Einmal-Code für die angemeldete Person. Nur der Hash landet in
++ * der Datenbank; zurückgegeben wird der Code selbst (für die Weiterleitung).
++ */
++export function erzeugeCode({ userId, clientId, redirectUri }) {
++  const db = getDb();
++  const code = crypto.randomBytes(32).toString('base64url');
++  db.prepare('DELETE FROM sso_codes WHERE expires_at < ?').run(Date.now()); // Altlasten wegräumen
++  db.prepare(
++    `INSERT INTO sso_codes (code_hash, client_id, user_id, redirect_uri, expires_at)
++     VALUES (?, ?, ?, ?, ?)`,
++  ).run(hash(code), clientId, userId, redirectUri, Date.now() + CODE_TTL_MS);
++  return code;
++}
++
++/**
++ * Löst einen Einmal-Code ein. Der Code wird dabei gelöscht (single use).
++ * Wirft mit `.status`/`.code`, wenn er unbekannt, abgelaufen oder für eine
++ * andere Rücksprungadresse ausgestellt wurde.
++ */
++export function loeseCodeEin({ code, clientId, redirectUri }) {
++  const db = getDb();
++  const zeile = db.prepare('SELECT * FROM sso_codes WHERE code_hash = ?').get(hash(String(code || '')));
++  // Immer löschen: auch ein fehlgeschlagener Versuch verbraucht den Code.
++  if (zeile) db.prepare('DELETE FROM sso_codes WHERE code_hash = ?').run(zeile.code_hash);
++
++  const fehler = (nachricht) => {
++    const e = new Error(nachricht);
++    e.status = 400;
++    return e;
++  };
++  if (!zeile) throw fehler('Code unbekannt oder bereits eingelöst');
++  if (zeile.expires_at < Date.now()) throw fehler('Code abgelaufen');
++  if (zeile.client_id !== clientId) throw fehler('Code gehört zu einer anderen App');
++  if (zeile.redirect_uri !== redirectUri) throw fehler('redirect_uri passt nicht zum Code');
++
++  const user = db.prepare('SELECT * FROM users WHERE id = ? AND active = 1').get(zeile.user_id);
++  if (!user) throw fehler('Konto existiert nicht mehr oder ist deaktiviert');
++  return user;
++}
+diff --git a/test/sso-lehrerkalender.test.js b/test/sso-lehrerkalender.test.js
+new file mode 100644
+index 0000000..f10809c
+--- /dev/null
++++ b/test/sso-lehrerkalender.test.js
+@@ -0,0 +1,248 @@
++/**
++ * Single Sign-on + Lese-Schnittstelle für den Lehrerkalender (src/sso.js,
++ * src/routes/sso.js, src/routes/api-extern.js).
++ *
++ * Geprüft wird der komplette Ablauf: /sso/authorize schickt Unangemeldete zum
++ * Login, liefert danach einen Einmal-Code, der genau einmal gegen die
++ * Identität getauscht werden kann — und die Klassen-/Schülerschnittstelle
++ * gibt nur die Klassen der jeweiligen Lehrkraft heraus.
++ */
++
++import { test } from 'node:test';
++import assert from 'node:assert/strict';
++import path from 'node:path';
++import fs from 'node:fs';
++import os from 'node:os';
++
++const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'noten-test-sso-'));
++process.env.DB_PFAD = path.join(tempDir, 'test.sqlite3');
++process.env.SECRET = 'test-secret-fuer-sso-test-bitte-lang-genug-damit-es-passt';
++process.env.NODE_ENV = 'test';
++process.env.SSO_CLIENT_ID = 'lehrerkalender';
++process.env.SSO_CLIENT_SECRET = 'gemeinsames-test-geheimnis';
++process.env.SSO_REDIRECT_URIS = 'https://kalender.example.org/auth/sso/callback';
++delete process.env.LDAP_URL;
++
++const REDIRECT = 'https://kalender.example.org/auth/sso/callback';
++const GEHEIM = 'gemeinsames-test-geheimnis';
++
++const { buildApp } = await import('../app.js');
++const { getDb } = await import('../src/db.js');
++
++const fastify = await buildApp({ logger: false });
++const base = await fastify.listen({ port: 0, host: '127.0.0.1' });
++
++function client() {
++  const cookies = new Map();
++  function setCookie(header) {
++    if (!header) return;
++    for (const raw of Array.isArray(header) ? header : [header]) {
++      const [pair] = raw.split(';');
++      const [k, ...v] = pair.split('=');
++      cookies.set(k.trim(), v.join('=').trim());
++    }
++  }
++  return async function req(url, opts = {}) {
++    const headers = { ...opts.headers };
++    if (cookies.size) {
++      headers.cookie = Array.from(cookies.entries()).map(([k, v]) => `${k}=${v}`).join('; ');
++    }
++    const r = await fetch(base + url, { ...opts, headers, redirect: 'manual' });
++    const sc = r.headers.getSetCookie ? r.headers.getSetCookie() : r.headers.get('set-cookie');
++    if (sc) setCookie(sc);
++    return r;
++  };
++}
++
++function form(req, url, body) {
++  return req(url, {
++    method: 'POST',
++    headers: { 'content-type': 'application/x-www-form-urlencoded' },
++    body: new URLSearchParams(body),
++  });
++}
++
++function api(pfad, { sub, secret = GEHEIM } = {}) {
++  const headers = { authorization: `Bearer ${secret}`, accept: 'application/json' };
++  if (sub) headers['x-noten-sub'] = sub;
++  return fetch(base + pfad, { headers });
++}
++
++function tokenTausch(body) {
++  return fetch(base + '/sso/token', {
++    method: 'POST',
++    headers: { 'content-type': 'application/json', accept: 'application/json' },
++    body: JSON.stringify(body),
++  });
++}
++
++const authorizeUrl = (extra = {}) => {
++  const p = new URLSearchParams({
++    response_type: 'code',
++    client_id: 'lehrerkalender',
++    redirect_uri: REDIRECT,
++    state: 'abc123',
++    ...extra,
++  });
++  return '/sso/authorize?' + p.toString();
++};
++
++// ---------------------------------------------------------------- Vorbereitung
++// Ein Admin (via /setup), eine Lehrkraft mit eigener Klasse, eine zweite ohne.
++const admin = client();
++await form(admin, '/setup', {
++  username: 'admin', display_name: 'Admin', password: 'adminpass123', password2: 'adminpass123',
++});
++
++const db = getDb();
++const { hashPassword } = await import('../src/auth.js');
++db.prepare(
++  `INSERT INTO users (username, display_name, password_hash, role, active, auth_source, login_sub)
++   VALUES (?, ?, ?, 'teacher', 1, 'ldap', ?)`,
++).run('gades', 'T. Gades', hashPassword('egal-ldap'), 'Gades');
++db.prepare(
++  `INSERT INTO users (username, display_name, password_hash, role, active, auth_source)
++   VALUES (?, ?, ?, 'teacher', 1, 'lokal')`,
++).run('extern', 'Externe Kraft', hashPassword('externpass123'));
++
++const sjId = db.prepare("INSERT INTO schuljahre (bezeichnung) VALUES ('2026/2027')").run().lastInsertRowid;
++const gades = db.prepare('SELECT * FROM users WHERE username = ?').get('gades');
++const klasseId = db.prepare(
++  'INSERT INTO klassen (schuljahr_id, name, created_by_id) VALUES (?, ?, ?)',
++).run(sjId, '11a BIN', gades.id).lastInsertRowid;
++const fachId = db.prepare('INSERT INTO faecher (klasse_id, name) VALUES (?, ?)')
++  .run(klasseId, 'Berufliche Informatik').lastInsertRowid;
++db.prepare('INSERT INTO fach_zuweisungen (user_id, fach_id) VALUES (?, ?)').run(gades.id, fachId);
++db.prepare('INSERT INTO schueler (klasse_id, nachname, vorname) VALUES (?, ?, ?)')
++  .run(klasseId, 'Müller', 'Anna');
++db.prepare('INSERT INTO schueler (klasse_id, nachname, vorname) VALUES (?, ?, ?)')
++  .run(klasseId, 'Koch', 'Clara');
++
++// ---------------------------------------------------------------------- Tests
++test('authorize: ohne Anmeldung führt der Weg zuerst über /login', async () => {
++  const anon = client();
++  const r = await anon(authorizeUrl());
++  assert.equal(r.status, 302);
++  const ort = r.headers.get('location');
++  assert.ok(ort.startsWith('/login?next='), ort);
++  // Nach dem Login geht es zurück zur authorize-Adresse.
++  assert.match(decodeURIComponent(ort), /\/sso\/authorize\?/);
++});
++
++test('authorize: unbekannte redirect_uri wird NICHT angesprungen', async () => {
++  const c = client();
++  await form(c, '/login', { username: 'gades', password: 'egal-ldap' }); // LDAP-Konto: Login schlägt fehl
++  const r = await c(authorizeUrl({ redirect_uri: 'https://boese.example/klau' }));
++  assert.equal(r.status, 400);
++  assert.equal(r.headers.get('location'), null);
++});
++
++test('kompletter Ablauf: Code einlösen liefert die Kennung des AD-Kontos', async () => {
++  // Anmeldung als lokales Konto (LDAP ist im Test nicht erreichbar) …
++  const c = client();
++  const login = await form(c, '/login', { username: 'extern', password: 'externpass123' });
++  assert.equal(login.status, 302);
++
++  const r = await c(authorizeUrl());
++  assert.equal(r.status, 302);
++  const ziel = new URL(r.headers.get('location'));
++  assert.equal(ziel.origin + ziel.pathname, REDIRECT);
++  assert.equal(ziel.searchParams.get('state'), 'abc123');
++  const code = ziel.searchParams.get('code');
++  assert.ok(code && code.length > 20);
++
++  const t = await tokenTausch({
++    client_id: 'lehrerkalender', client_secret: GEHEIM, code, redirect_uri: REDIRECT,
++  });
++  assert.equal(t.status, 200);
++  const identitaet = await t.json();
++  // Lokales Konto -> "nv:"-Präfix, damit es nie mit einer AD-Kennung kollidiert.
++  assert.equal(identitaet.sub, 'nv:extern');
++  assert.equal(identitaet.username, 'extern');
++  assert.equal(identitaet.name, 'Externe Kraft');
++
++  // Zweiter Versuch mit demselben Code scheitert (single use).
++  const nochmal = await tokenTausch({
++    client_id: 'lehrerkalender', client_secret: GEHEIM, code, redirect_uri: REDIRECT,
++  });
++  assert.equal(nochmal.status, 400);
++});
++
++test('token: falsches Geheimnis -> 401, Code bleibt unverbraucht', async () => {
++  const c = client();
++  await form(c, '/login', { username: 'extern', password: 'externpass123' });
++  const r = await c(authorizeUrl());
++  const code = new URL(r.headers.get('location')).searchParams.get('code');
++
++  const falsch = await tokenTausch({
++    client_id: 'lehrerkalender', client_secret: 'falsch-falsch-falsch', code, redirect_uri: REDIRECT,
++  });
++  assert.equal(falsch.status, 401);
++
++  const richtig = await tokenTausch({
++    client_id: 'lehrerkalender', client_secret: GEHEIM, code, redirect_uri: REDIRECT,
++  });
++  assert.equal(richtig.status, 200);
++});
++
++test('token: abweichende redirect_uri wird abgelehnt', async () => {
++  const c = client();
++  await form(c, '/login', { username: 'extern', password: 'externpass123' });
++  const r = await c(authorizeUrl());
++  const code = new URL(r.headers.get('location')).searchParams.get('code');
++  const t = await tokenTausch({
++    client_id: 'lehrerkalender', client_secret: GEHEIM, code,
++    redirect_uri: 'https://kalender.example.org/anders',
++  });
++  assert.equal(t.status, 400);
++});
++
++test('api-extern: ohne Geheimnis 401, mit Geheimnis antwortet /ping', async () => {
++  const ohne = await fetch(base + '/api/extern/ping', { headers: { accept: 'application/json' } });
++  assert.equal(ohne.status, 401);
++  const mit = await api('/api/extern/ping');
++  assert.equal(mit.status, 200);
++  const j = await mit.json();
++  assert.equal(j.app, 'notenverwaltung');
++  assert.ok(j.version >= 13);
++});
++
++test('api-extern: Klassen der Lehrkraft inkl. Fächer (Kennung = sAMAccountName)', async () => {
++  // Groß-/Kleinschreibung der Kennung darf keine Rolle spielen.
++  const r = await api('/api/extern/klassen', { sub: 'gades' });
++  assert.equal(r.status, 200);
++  const j = await r.json();
++  assert.equal(j.klassen.length, 1);
++  const k = j.klassen[0];
++  assert.equal(k.name, '11a BIN');
++  assert.equal(k.schuljahr, '2026/2027');
++  assert.equal(k.schuelerAnzahl, 2);
++  assert.deepEqual(k.faecher.map((f) => f.name), ['Berufliche Informatik']);
++  assert.equal(k.rolle.ersteller, true);
++});
++
++test('api-extern: Schülerliste sortiert, nur mit Klassenzugriff', async () => {
++  const r = await api(`/api/extern/klassen/${klasseId}`, { sub: 'Gades' });
++  assert.equal(r.status, 200);
++  const { klasse } = await r.json();
++  assert.deepEqual(klasse.schueler.map((s) => s.nachname), ['Koch', 'Müller']);
++
++  // Lokales Konto ohne jede Zuweisung: kein Zugriff.
++  const fremd = await api(`/api/extern/klassen/${klasseId}`, { sub: 'nv:extern' });
++  assert.equal(fremd.status, 403);
++
++  // Unbekannte Kennung: sauberer 404 statt Datenpreisgabe.
++  const unbekannt = await api('/api/extern/klassen', { sub: 'gibtsnicht' });
++  assert.equal(unbekannt.status, 404);
++});
++
++test('api-extern: Klassenliste einer Lehrkraft ohne Klassen ist leer', async () => {
++  const r = await api('/api/extern/klassen', { sub: 'nv:extern' });
++  assert.equal(r.status, 200);
++  assert.deepEqual((await r.json()).klassen, []);
++});
++
++test.after(async () => {
++  await fastify.close();
++  fs.rmSync(tempDir, { recursive: true, force: true });
++});
+diff --git a/views/partials/layout.ejs b/views/partials/layout.ejs
+index fa85ae8..50f729c 100644
+--- a/views/partials/layout.ejs
++++ b/views/partials/layout.ejs
+@@ -42,6 +42,10 @@
+         <a href="/teacher/sitzplaene">Sitzpläne</a>
+         <a href="/teacher">Noteneingabe</a>
+         <a href="/klassenlehrer">Klassenleitung</a>
++        <% if (typeof kalenderUrl !== 'undefined' && kalenderUrl) { %>
++          <%# Schwester-App: dank Single Sign-on ohne zweite Anmeldung (src/sso.js) %>
++          <a href="<%= kalenderUrl %>" target="_blank" rel="noopener">Lehrerkalender ↗</a>
++        <% } %>
+       </nav>
+       <div class="userbox">
+         <span class="user"><%= user.displayName || user.username %></span>

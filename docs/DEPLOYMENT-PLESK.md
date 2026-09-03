@@ -64,7 +64,7 @@ doch vorhanden, außerhalb des Dokumentenstamms liegen).
 |----------|-----------------|-------|
 | `MASTER_KEY` | `openssl rand -base64 32` | Schlüssel für die DB-Verschlüsselung — **geheim halten & sichern** |
 | `SESSION_SECRET` | `openssl rand -base64 32` | Signatur der Session-Cookies |
-| `AUTH_MODE` | `ldap` | echter AD-/LDAP-Login (statt `dev`) |
+| `AUTH_MODE` | `ldap` oder `sso` | echter AD-/LDAP-Login (statt `dev`) bzw. Anmeldung über die Notenverwaltung |
 | `SECURE_COOKIES` | `true` | secure-Cookies hinter HTTPS |
 | `DATA_DIR` | z. B. `/var/www/vhosts/<domain>/lehrerkalender-data` | Ablage der verschlüsselten DBs, **außerhalb** des Dokumentenstamms |
 
@@ -84,6 +84,19 @@ doch vorhanden, außerhalb des Dokumentenstamms liegen).
 
 > **MASTER_KEY & DATA_DIR sichern!** Ohne den `MASTER_KEY` sind alle Nutzer-DBs
 > unwiederbringlich unlesbar. Backup von `DATA_DIR` **und** `MASTER_KEY` einplanen.
+
+**Notenverwaltung / Single Sign-on** — vollständige Beschreibung in
+[`docs/NOTENVERWALTUNG-INTEGRATION.md`](NOTENVERWALTUNG-INTEGRATION.md):
+
+| Variable | Beispiel | Zweck |
+|----------|----------|-------|
+| `NOTEN_BASE_URL` | `https://noten.bbz-rd-eck.com` | Basis-URL der Notenverwaltung (ohne Pfad) |
+| `NOTEN_CLIENT_SECRET` | `openssl rand -base64 32` | gemeinsames Geheimnis; dort als `SSO_CLIENT_SECRET` |
+| `PUBLIC_URL` | `https://kalender.bbz-rd-eck.com` | eigene Basis-URL für die SSO-Rücksprungadresse |
+| `SSO_FALLBACK_MODE` | `none` oder `ldap` | Passwort-Formular als Notausgang bei `AUTH_MODE=sso` |
+
+In der Notenverwaltung muss `<PUBLIC_URL>/auth/sso/callback` unter
+`SSO_REDIRECT_URIS` eingetragen sein, sonst wird die Anmeldung abgewiesen.
 
 ### Optional: Einbettung per iframe (z. B. Nextcloud „Externe Seiten")
 

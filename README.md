@@ -10,7 +10,8 @@ nur noch als **Offline-Lesecache** – Quelle der Wahrheit ist der Server.
 ## Funktionsumfang
 
 Wochenplan · Halbjahresplaner · Klassenbuch · Stundenplan-Editor · Ferien-Verwaltung ·
-Nextcloud-Arbeitsblatt-Links · WebUntis-CSV-Import · JSON-Export/Import.
+Nextcloud-Arbeitsblatt-Links · WebUntis-CSV-Import · JSON-Export/Import ·
+Anbindung an die **Notenverwaltung** (eine Anmeldung, verknüpfte Klassen).
 Details siehe [ANLEITUNG.md](ANLEITUNG.md).
 
 ## Architektur
@@ -20,13 +21,14 @@ Browser (PWA, jedes Gerät)
    │  HTTPS, Session-Cookie
    ▼
 Node.js / Express-Server (server/)
-   ├── Auth-Schicht (austauschbar: dev-login | ldap)
+   ├── Auth-Schicht (austauschbar: dev-login | ldap | sso)
    ├── Static-Serving der PWA (public/)
-   └── REST-API /api/*  (session-geschützt)
-         ▼
-   Pro-Nutzer verschlüsselte SQLite:  data/<safeUser>.db
-   (SQLCipher via better-sqlite3-multiple-ciphers)
-   Schlüssel = HKDF(MASTER_KEY, username) → jede DB eigener Schlüssel
+   ├── REST-API /api/*  (session-geschützt)
+   │     ▼
+   │  Pro-Nutzer verschlüsselte SQLite:  data/<safeUser>.db
+   │  Schlüssel = HKDF(MASTER_KEY, username) → jede DB eigener Schlüssel
+   └── /api/noten/*  ──server-zu-server──▶  Notenverwaltung
+         (Klassen, Fächer, Schülerlisten; Anmeldung per SSO)
 ```
 
 Der Server kann zur Laufzeit entschlüsseln (**Verschlüsselung at-rest**): Schutz gegen
@@ -65,6 +67,7 @@ npm start
 |-----------|-----------|
 | `dev`     | Test-Login: beliebiger Benutzername, keine Passwortprüfung. Optional per `DEV_ALLOWED_USERS` einschränken. |
 | `ldap`    | Echter LDAP-/AD-Bind. Vollständig über `.env` konfiguriert (kein Code-Change nötig). |
+| `sso`     | Anmeldung über die **Notenverwaltung** – wer dort angemeldet ist, kommt ohne zweite Eingabe herein. `SSO_FALLBACK_MODE=ldap` behält das Passwort-Formular als Notausgang. Siehe [docs/NOTENVERWALTUNG-INTEGRATION.md](docs/NOTENVERWALTUNG-INTEGRATION.md). |
 
 Das LDAP-Modul (`server/auth/ldap.js`) ist aus der **Notentabellen-SPA** übernommen, damit
 beide Schul-Apps dieselbe erprobte Anmeldelogik gegen den AD nutzen. Es kennt zwei Modi:
@@ -85,6 +88,33 @@ Hash-Suffix gegen Kollisionen und Path-Traversal.
 **Diagnose:** `AUTH_MODE=ldap npm run ldap-test -- <benutzer> <passwort>` testet den Login
 direkt ohne Webserver und gibt Konfiguration sowie den vollständigen Fehler aus.
 
+## Notenverwaltung: eine Anmeldung, verknüpfte Klassen
+
+Die Schwester-App **Notenverwaltung** (`noten_webapp`, `https://noten.bbz-rd-eck.com`)
+ist der Anmeldedienst der Schule und bleibt alleinige Quelle der Noten. Mit
+
+```
+AUTH_MODE=sso
+NOTEN_BASE_URL=https://noten.bbz-rd-eck.com
+NOTEN_CLIENT_SECRET=<gemeinsames Geheimnis>
+PUBLIC_URL=https://kalender.bbz-rd-eck.com
+```
+
+melden sich Lehrkräfte nur noch einmal an. Im Klassenbuch lässt sich jede
+Klasse mit einer Klasse (und optional einem Fach) der Notenverwaltung
+**verknüpfen**: Schülerlisten kommen von dort, ein Knopf springt direkt in
+die Notentafel. Geschrieben wird nichts zurück.
+
+Die Datenabrufe laufen server-zu-server (`/api/noten/*` → `/api/extern/*`),
+nicht aus dem Browser – dadurch keine CORS-Regeln und keine Dritt-Cookies
+(die Safari blockt). Die Anbindung funktioniert auch mit `AUTH_MODE=ldap`,
+dann bleiben es zwei Anmeldungen.
+
+Details, Sicherheitsmodell und Inbetriebnahme:
+**[docs/NOTENVERWALTUNG-INTEGRATION.md](docs/NOTENVERWALTUNG-INTEGRATION.md)**.
+Die Gegenstelle liegt als anwendbarer Patch in
+[docs/noten-webapp/](docs/noten-webapp/ANWENDEN.md).
+
 ## Datenmodell
 
 Die Pro-Nutzer-DB ist eine `kv(key, value)`-Tabelle und spiegelt exakt die früheren
@@ -93,12 +123,22 @@ localStorage-Schlüssel (`lp_lessons`, `lp_klassen`, `lp_hj`, `lp_sp`, `lp_wkcfg
 
 API: `GET /api/me`, `GET /api/state`, `PUT /api/state` (Batch), `PUT /api/kv/:key`.
 
+Die Verknüpfung einer Klasse mit der Notenverwaltung steht als optionales Feld
+`nv` am Klassen-Objekt in `lp_klassen`
+(`{klasseId, klasseName, schuljahr, fachId, fachName, verknuepftAm}`); die
+Daten selbst werden nicht gespiegelt, sondern bei Bedarf über
+`GET /api/noten/status|klassen|klassen/:id` frisch geholt.
+
 ## Projektstruktur
 
 ```
 server/            Express-Server, Auth, verschlüsselte DB, API-Routen
+  auth/            dev/ldap-Login + sso.js (Anmeldung über die Notenverwaltung)
+  noten/           HTTP-Client zur Notenverwaltung (server-zu-server)
+  routes/          state.js (Nutzerdaten), noten.js (Klassen-Verknüpfung)
 public/            PWA (index.html, login.html, sw.js, manifest, icons, vendor/tabler)
 data/              verschlüsselte Pro-Nutzer-DBs  (nicht im Repo)
+docs/noten-webapp/ Patch für die Gegenstelle in der Notenverwaltung
 .env.example       Konfigurationsvorlage
 ```
 
@@ -107,6 +147,9 @@ data/              verschlüsselte Pro-Nutzer-DBs  (nicht im Repo)
 - **Phase B:** LDAP ist implementiert (`server/auth/ldap.js`) – nur noch `AUTH_MODE=ldap`
   setzen und die `.env` befüllen, sobald der LDAP-Endpoint bereitsteht.
 - **Phase C:** Synchronisierung der verschlüsselten DB-Dateien über Nextcloud (WebDAV).
+- **Notenverwaltung:** SSO + Klassen-Verknüpfung sind implementiert (lesend).
+  Denkbare nächste Schritte: Abwesenheiten aus dem Klassenbuch als Fehlzeiten
+  zurückschreiben, Mitarbeitsfarben in die Unterrichtsleistungs-Datumstabelle.
 
 ## Tests
 
@@ -115,7 +158,9 @@ npm test          # Node-eigener Test-Runner (node --test), keine Zusatzpakete
 ```
 
 Abgedeckt sind Datei-/Schlüsselableitung (`keys`), das RFC-4515-Filter-Escaping,
-der Auth-Fluss (dev + ldap, LDAP gestubbt) sowie die Konfigurations-Validierung.
+der Auth-Fluss (dev + ldap, LDAP gestubbt), der SSO-Fluss gegen die
+Notenverwaltung (`sso`, `noten-client`, jeweils mit Testdoppeln) sowie die
+Konfigurations-Validierung.
 
 ## Produktion
 

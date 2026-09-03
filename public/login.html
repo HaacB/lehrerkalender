@@ -23,6 +23,12 @@ button:disabled{opacity:.6;cursor:default}
 .err{margin-top:14px;padding:9px 11px;font-size:13px;color:var(--re);background:var(--rebg);border-radius:8px;display:none}
 .err.show{display:block}
 .hint{margin-top:16px;font-size:11px;color:var(--tx3);line-height:1.5}
+button.sso{background:transparent;color:var(--ac);border:1px solid var(--acbor)}
+.sep{display:flex;align-items:center;gap:10px;margin:18px 0 4px;font-size:11px;color:var(--tx3)}
+.sep::before,.sep::after{content:'';flex:1;height:1px;background:var(--bor)}
+#pwbox{display:none}
+#pwbox.show{display:block}
+.lade{margin-top:18px;font-size:13px;color:var(--tx2);text-align:center}
 </style>
 </head>
 <body>
@@ -31,16 +37,63 @@ button:disabled{opacity:.6;cursor:default}
     <div class="logo-ic">L</div>
     <div><div class="logo-tx">Lehrerkalender</div><div class="logo-sub">BBZ RD-ECK</div></div>
   </div>
-  <label for="u">Benutzername</label>
-  <input id="u" name="username" type="text" autocomplete="username" autofocus required>
-  <label for="p">Passwort</label>
-  <input id="p" name="password" type="password" autocomplete="current-password">
-  <button id="b" type="submit">Anmelden</button>
+  <div id="ssobox" style="display:none">
+    <button class="sso" type="button" id="ssobtn">Mit der Notenverwaltung anmelden</button>
+    <div class="sep" id="ssosep">oder</div>
+  </div>
+  <div id="pwbox">
+    <label for="u">Benutzername</label>
+    <input id="u" name="username" type="text" autocomplete="username" required>
+    <label for="p">Passwort</label>
+    <input id="p" name="password" type="password" autocomplete="current-password">
+    <button id="b" type="submit">Anmelden</button>
+  </div>
+  <div class="lade" id="lade">Anmeldung wird vorbereitet…</div>
   <div class="err" id="e"></div>
   <div class="hint" id="hint"></div>
 </form>
 <script>
 var f=document.getElementById('f'),e=document.getElementById('e'),b=document.getElementById('b');
+
+var ssoStart='/auth/sso/start';
+document.getElementById('ssobtn').addEventListener('click',function(){window.location.href=ssoStart;});
+
+// Fehlermeldung aus einem abgebrochenen SSO-Rücksprung anzeigen.
+(function(){
+  var m=/[?&]sso_error=([^&]*)/.exec(window.location.search);
+  if(!m)return;
+  e.textContent=decodeURIComponent(m[1].replace(/\+/g,' '));
+  e.classList.add('show');
+})();
+
+// Anmeldeseite an die Server-Konfiguration anpassen: reines SSO leitet sofort
+// weiter (dann ist der Login der Notenverwaltung die EINZIGE Anmeldung),
+// Mischbetrieb zeigt Knopf + Formular, ohne SSO bleibt alles wie bisher.
+fetch('/auth/config',{credentials:'same-origin'})
+  .then(function(r){return r.ok?r.json():null;})
+  .then(function(cfg){
+    document.getElementById('lade').style.display='none';
+    if(!cfg){document.getElementById('pwbox').classList.add('show');return;}
+    var hatFehler=e.classList.contains('show');
+    if(cfg.sso){
+      ssoStart=cfg.ssoStartUrl||ssoStart;
+      document.getElementById('ssobox').style.display='';
+      if(!cfg.passwortLogin){
+        document.getElementById('ssosep').style.display='none';
+        // Ohne Passwort-Fallback direkt weiterleiten – außer der letzte
+        // Versuch ist gescheitert (sonst entsteht eine Endlosschleife).
+        if(!hatFehler){window.location.replace(ssoStart);return;}
+      }
+    }
+    if(cfg.passwortLogin){
+      document.getElementById('pwbox').classList.add('show');
+      document.getElementById('u').focus();
+    }
+  })
+  .catch(function(){
+    document.getElementById('lade').style.display='none';
+    document.getElementById('pwbox').classList.add('show');
+  });
 f.addEventListener('submit',function(ev){
   ev.preventDefault();
   e.classList.remove('show');b.disabled=true;b.textContent='Anmelden…';

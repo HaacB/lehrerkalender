@@ -327,6 +327,8 @@ td.ec.tdc{outline:1.5px solid var(--acbor);outline-offset:-1px}
     <div class="ni" id="nav-halbjahr" onclick="showView('halbjahr')"><i class="ti ti-calendar-month" aria-hidden="true"></i><span>Halbjahr</span></div>
     <div class="nsec">Klassen</div>
     <div class="ni" id="nav-klassen" onclick="showView('klassen')"><i class="ti ti-school" aria-hidden="true"></i><span>Klassenbuch</span></div>
+    <!-- Sprung in die Notenverwaltung (gleiche Anmeldung); wird von nvInit() eingeblendet. -->
+    <div class="ni" id="nav-noten" style="display:none" onclick="nvOeffne('/start')" title="Notenverwaltung in neuem Tab öffnen"><i class="ti ti-table" aria-hidden="true"></i><span>Notenverwaltung</span></div>
     <div class="nsec">Setup</div>
     <div class="ni" id="nav-stundenplan" onclick="showView('stundenplan')"><i class="ti ti-layout-grid" aria-hidden="true"></i><span>Stundenplan</span></div>
     <div class="ni" id="nav-ferien" onclick="showView('ferien')"><i class="ti ti-sun" aria-hidden="true"></i><span>Ferien</span></div>
@@ -356,6 +358,7 @@ td.ec.tdc{outline:1.5px solid var(--acbor);outline-offset:-1px}
 <div class="more-sheet" id="more-sheet">
   <div class="more-item" onclick="navFromMore('ferien')"><i class="ti ti-sun" aria-hidden="true"></i>Ferien</div>
   <div class="more-item" onclick="navFromMore('import')"><i class="ti ti-upload" aria-hidden="true"></i>Import</div>
+  <div class="more-item" id="more-noten" style="display:none" onclick="closeMoreSheet();nvOeffne('/start')"><i class="ti ti-table" aria-hidden="true"></i>Notenverwaltung</div>
   <div class="more-item" onclick="navFromMore('einstellungen')"><i class="ti ti-settings" aria-hidden="true"></i>Einstellungen</div>
 </div>
 <div class="toast" id="toast"></div>
@@ -416,6 +419,7 @@ function lkReloadState(){
       Object.keys(localStorage).filter(__lkAppKey).forEach(function(k){localStorage.removeItem(k);});
       Object.keys(data).forEach(function(k){try{localStorage.setItem(k,data[k]);}catch(e){}});
       __lkSync.online=true;
+      if(typeof nvInit==='function')nvInit(); // Notenverwaltungs-Anbindung prüfen
       if(typeof lkReloadState==='function')lkReloadState();
       if(typeof render==='function')render();
       if(typeof applyTheme==='function')applyTheme(); // ggf. vom Server geladenes pref_theme anwenden
@@ -512,7 +516,7 @@ const DEPTS=['BG','BOS','SPA','BFS3','AVSH'];
 // Auswaehlbare Schuljahre (altes 2025/26 entfernt).
 const SCHULJAHRE=['2026/27','2027/28'];
 // App-Version (bei jedem Release mit dem Service-Worker-Cache hochzaehlen).
-const APP_VERSION='v20 · 03.07.2026';
+const APP_VERSION='v21 · 03.09.2026';
 // Zwischenspeicher + Service Worker leeren und neu laden -> holt garantiert den
 // neuesten Stand ("App aktualisieren"-Knopf). Loescht KEINE Nutzerdaten.
 async function forceUpdate(){
@@ -949,13 +953,29 @@ function gotoWeek(ds){
 }
 
 /* ===== KLASSENBUCH ===== */
+// Knoepfe der Notenverwaltungs-Anbindung in der Werkzeugleiste des
+// Klassenbuchs: verknuepfen bzw. Direktsprung + Schuelerliste auffrischen.
+function nvToolbarHtml(kl){
+  if(!nvAktiv())return '';
+  if(!kl)return '';
+  if(!kl.nv){
+    return `<button class="btn" onclick="openNvLink('link','${kl.id}')" title="Diese Klasse mit der Notenverwaltung verknüpfen"><i class="ti ti-link" aria-hidden="true"></i>Noten verknüpfen</button>`;
+  }
+  const ziel=kl.nv.fachId?('/teacher/fach/'+kl.nv.fachId):('/teacher/klassen/'+kl.nv.klasseId);
+  const lbl=kl.nv.fachId?'Notentafel':'Notenverwaltung';
+  const tip=esc(kl.nv.klasseName)+(kl.nv.fachName?' · '+esc(kl.nv.fachName):'')+' in der Notenverwaltung öffnen';
+  return `<button class="btn" onclick="nvOeffne('${ziel}')" title="${tip}"><i class="ti ti-external-link" aria-hidden="true"></i>${lbl}</button>
+    <button class="btn" onclick="nvSchuelerUebernehmen('${kl.id}')" title="Schülerliste aus der Notenverwaltung auffrischen"><i class="ti ti-refresh" aria-hidden="true"></i>Schülerliste</button>`;
+}
+
 function renderKlassen(c,ta){
   if(!S.selKlasse&&S.klassen.length)S.selKlasse=S.klassen[0].id;
   const kl=S.klassen.find(k=>k.id===S.selKlasse);
 
   ta.innerHTML=`<button class="btn pri" onclick="openPrintDialog()"><i class="ti ti-printer" aria-hidden="true"></i>Drucken</button>
     <button class="btn" onclick="openAddKlasse()"><i class="ti ti-plus" aria-hidden="true"></i>Klasse</button>
-    <button class="btn" onclick="openAddSuS()" ${!S.selKlasse?'disabled title="Erst Klasse auswählen"':''}><i class="ti ti-user-plus" aria-hidden="true"></i>Schüler/in</button>`;
+    <button class="btn" onclick="openAddSuS()" ${!S.selKlasse?'disabled title="Erst Klasse auswählen"':''}><i class="ti ti-user-plus" aria-hidden="true"></i>Schüler/in</button>`
+    +nvToolbarHtml(kl);
 
   let tabs='<div class="kl-tabs">';
   S.klassen.forEach(k=>{
@@ -1029,6 +1049,186 @@ ${allFaecher.length>0?`<div style='display:flex;gap:6px;margin-bottom:8px;align-
   }
 
   c.innerHTML=tabs+tbl;
+}
+
+/* ===== NOTENVERWALTUNG (Single Sign-on + Klassen-Verknuepfung) =====
+   Der Browser spricht ausschliesslich mit DIESEM Server (/api/noten/*), der die
+   Anfragen mit dem gemeinsamen Geheimnis an die Notenverwaltung weiterreicht.
+   Eine Kalender-Klasse merkt sich die Verknuepfung in kl.nv:
+     { klasseId, klasseName, schuljahr, fachId, fachName, verknuepftAm }        */
+var NV={status:null,klassen:null};
+
+// Konfiguration einmalig laden (still: ohne Anbindung bleibt alles wie bisher).
+function nvInit(){
+  return fetch('/api/noten/status',{credentials:'same-origin'})
+    .then(function(r){return r.ok?r.json():null;})
+    .then(function(st){
+      NV.status=st||{konfiguriert:false};
+      if(nvAktiv()&&NV.status.url){
+        var n=document.getElementById('nav-noten');if(n)n.style.display='';
+        var m=document.getElementById('more-noten');if(m)m.style.display='';
+      }
+      // Ansichten, die von der Anbindung wissen müssen, neu zeichnen.
+      if(NV.status.konfiguriert&&(S.view==='klassen'||S.view==='einstellungen')&&typeof render==='function')render();
+      return NV.status;
+    })
+    .catch(function(){NV.status={konfiguriert:false};return NV.status;});
+}
+function nvAktiv(){return !!(NV.status&&NV.status.konfiguriert);}
+// Link in die Notenverwaltung (leer, wenn keine oeffentliche URL bekannt ist).
+function nvUrl(pfad){var b=NV.status&&NV.status.url;return b?b+pfad:'';}
+function nvOeffne(pfad){var u=nvUrl(pfad);if(u)window.open(u,'_blank','noopener');}
+
+// Klassenliste der angemeldeten Lehrkraft (einmal je Sitzung gepuffert).
+function nvKlassenLaden(neuLaden){
+  if(NV.klassen&&!neuLaden)return Promise.resolve(NV.klassen);
+  return fetch('/api/noten/klassen',{credentials:'same-origin'})
+    .then(function(r){return r.json().then(function(j){if(!r.ok)throw new Error(j.error||'Fehler');return j;});})
+    .then(function(j){NV.klassen=j.klassen||[];return NV.klassen;});
+}
+
+// --- Verknuepfungs-Dialog ---------------------------------------------------
+// mode 'link' = bestehende Kalender-Klasse verknuepfen, 'neu' = Klasse aus der
+// Notenverwaltung im Kalender neu anlegen.
+function openNvLink(mode,klId){
+  if(!nvAktiv()){toast('Notenverwaltung ist nicht eingerichtet');return;}
+  S.modal={type:'nvLink',mode:mode||'link',klId:klId||S.selKlasse,daten:null,fehler:null,sel:{}};
+  // Im Modus "neu" entsteht eine frische Klasse -> keine Vorbelegung aus der
+  // gerade ausgewählten Kalender-Klasse übernehmen.
+  var kl=S.modal.mode==='link'?S.klassen.find(function(k){return k.id===S.modal.klId;}):null;
+  if(kl&&kl.nv)S.modal.sel={klasseId:String(kl.nv.klasseId),fachId:kl.nv.fachId?String(kl.nv.fachId):''};
+  renderModal();
+  nvKlassenLaden(true)
+    .then(function(list){
+      if(!S.modal||S.modal.type!=='nvLink')return;
+      S.modal.daten=list;
+      // Vorauswahl: bereits verknuepft, sonst Klasse mit gleichem Namen.
+      if(!S.modal.sel.klasseId&&kl){
+        var treffer=list.find(function(k){return k.name.toLowerCase()===String(kl.name||'').toLowerCase();});
+        if(treffer)S.modal.sel.klasseId=String(treffer.id);
+      }
+      renderModal();
+    })
+    .catch(function(err){
+      if(!S.modal||S.modal.type!=='nvLink')return;
+      S.modal.fehler=err.message;renderModal();
+    });
+}
+function nvModalHtml(){
+  var m=S.modal,neu=m.mode==='neu';
+  var kl=neu?null:S.klassen.find(function(k){return k.id===m.klId;});
+  var titel=neu?'Klasse aus der Notenverwaltung':'Klasse verknüpfen'+(kl?' – '+esc(kl.name):'');
+  var koerper;
+  if(m.fehler){
+    koerper='<div style="padding:14px;border-radius:8px;background:var(--rebg);color:var(--re);font-size:13px">'+esc(m.fehler)+'</div>'+
+      '<div class="hint" style="margin-top:10px;font-size:11px;color:var(--tx3)">Prüfe, ob du in der Notenverwaltung Klassen hast und die Anbindung eingerichtet ist.</div>';
+  } else if(!m.daten){
+    koerper='<div style="padding:24px;text-align:center;color:var(--tx3);font-size:13px">Klassen werden geladen…</div>';
+  } else if(!m.daten.length){
+    koerper='<div style="padding:18px;text-align:center;color:var(--tx3);font-size:13px">In der Notenverwaltung sind dir noch keine Klassen zugeordnet.</div>';
+  } else {
+    var opts=m.daten.map(function(k){
+      var sel=String(k.id)===String(m.sel.klasseId)?' selected':'';
+      return '<option value="'+k.id+'"'+sel+'>'+esc(k.name)+' · '+esc(k.schuljahr||'')+'</option>';
+    }).join('');
+    koerper='<div class="field"><label>Klasse in der Notenverwaltung</label>'+
+      '<select id="nv-k" onchange="nvWaehleKlasse(this.value)">'+
+      '<option value="">– bitte wählen –</option>'+opts+'</select></div>'+
+      '<div class="field"><label>Fach (optional – für den Direktsprung in die Notentafel)</label>'+
+      '<select id="nv-f" onchange="nvWaehleFach(this.value)">'+nvFachOptionen()+'</select></div>'+
+      '<label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--tx2);margin-top:12px">'+
+      '<input type="checkbox" id="nv-sus" checked style="width:auto;margin:0"> Schülerliste aus der Notenverwaltung übernehmen</label>'+
+      '<div class="hint" style="margin-top:10px;font-size:11px;color:var(--tx3);line-height:1.5">'+
+      'Die Noten bleiben in der Notenverwaltung – der Kalender speichert nur die Verknüpfung '+
+      'und übernimmt auf Wunsch die Namen. Vorhandene Mitarbeitsdaten bleiben erhalten.</div>';
+  }
+  var aktion=m.daten&&m.daten.length
+    ? '<button class="btn pri" onclick="nvVerknuepfen()"><i class="ti ti-link"></i>'+(neu?'Klasse anlegen':'Verknüpfen')+'</button>'
+    : '';
+  var trennen=(!neu&&kl&&kl.nv)?'<button class="btn dan" onclick="nvTrennen()"><i class="ti ti-unlink"></i>Verknüpfung lösen</button>':'';
+  return '<div class="modal"><div class="mhd"><div class="mtit">'+titel+'</div>'+
+    '<button class="btn ico" onclick="closeModal()"><i class="ti ti-x"></i></button></div>'+
+    koerper+
+    '<div class="mfoot">'+trennen+'<button class="btn" onclick="closeModal()">Abbrechen</button>'+aktion+'</div></div>';
+}
+function nvFachOptionen(){
+  var m=S.modal;if(!m||!m.daten)return '<option value="">–</option>';
+  var k=m.daten.find(function(x){return String(x.id)===String(m.sel.klasseId);});
+  var faecher=(k&&k.faecher)||[];
+  return '<option value="">– kein Fach –</option>'+faecher.map(function(f){
+    var sel=String(f.id)===String(m.sel.fachId)?' selected':'';
+    return '<option value="'+f.id+'"'+sel+'>'+esc(f.name)+'</option>';
+  }).join('');
+}
+function nvWaehleKlasse(id){
+  S.modal.sel.klasseId=id;S.modal.sel.fachId='';
+  var f=document.getElementById('nv-f');if(f)f.innerHTML=nvFachOptionen();
+}
+function nvWaehleFach(id){S.modal.sel.fachId=id;}
+
+// Verknuepfung speichern (und optional die Schuelerliste uebernehmen).
+function nvVerknuepfen(){
+  var m=S.modal,neu=m.mode==='neu';
+  var nvK=(m.daten||[]).find(function(x){return String(x.id)===String(m.sel.klasseId);});
+  if(!nvK){alert('Bitte eine Klasse auswählen.');return;}
+  var fach=(nvK.faecher||[]).find(function(f){return String(f.id)===String(m.sel.fachId);});
+  var sus=document.getElementById('nv-sus')?document.getElementById('nv-sus').checked:false;
+  // Dieselbe Klasse zweimal im Kalender ist fast immer ein Versehen.
+  var schon=S.klassen.find(function(k){
+    return k.nv&&String(k.nv.klasseId)===String(nvK.id)&&k.id!==m.klId;
+  });
+  if(schon&&!confirm('„'+nvK.name+'" ist bereits mit der Kalender-Klasse „'+schon.name+'" verknüpft.\nTrotzdem fortfahren?'))return;
+  var kl;
+  if(neu){
+    kl={id:'k'+Date.now(),name:nvK.name,fach:fach?fach.name:'',schueler:[]};
+    S.klassen.push(kl);S.selKlasse=kl.id;
+  } else {
+    kl=S.klassen.find(function(k){return k.id===m.klId;});
+    if(!kl){closeModal();return;}
+    if(fach&&!kl.fach)kl.fach=fach.name;
+  }
+  kl.nv={klasseId:nvK.id,klasseName:nvK.name,schuljahr:nvK.schuljahr||'',
+         fachId:fach?fach.id:null,fachName:fach?fach.name:'',verknuepftAm:new Date().toISOString()};
+  saveAll();closeModal();
+  toast('Mit „'+nvK.name+'" verknüpft');
+  render();
+  if(sus)nvSchuelerUebernehmen(kl.id,true);
+}
+function nvTrennen(){
+  var kl=S.klassen.find(function(k){return k.id===S.modal.klId;});
+  if(!kl)return;
+  delete kl.nv;saveAll();closeModal();toast('Verknüpfung gelöst');render();
+}
+
+// Schuelerliste aus der Notenverwaltung uebernehmen. Bereits vorhandene
+// Namen behalten IHRE Kalender-ID – sonst gingen die Klassenbuch-Eintraege
+// verloren, die an dieser ID haengen. Es wird nur ergaenzt, nie geloescht.
+function nvNameKey(n){return String(n||'').toLowerCase().replace(/\s+/g,' ').trim();}
+function nvSchuelerUebernehmen(klId,still){
+  var kl=S.klassen.find(function(k){return k.id===(klId||S.selKlasse);});
+  if(!kl||!kl.nv){toast('Klasse ist nicht verknüpft');return;}
+  if(!still)toast('Schülerliste wird geholt…');
+  fetch('/api/noten/klassen/'+encodeURIComponent(kl.nv.klasseId),{credentials:'same-origin'})
+    .then(function(r){return r.json().then(function(j){if(!r.ok)throw new Error(j.error||'Fehler');return j;});})
+    .then(function(j){
+      var liste=(j.klasse&&j.klasse.schueler)||[];
+      var vorhanden={};
+      kl.schueler.forEach(function(s){vorhanden[nvNameKey(s.name)]=s;});
+      var neu=0;
+      liste.forEach(function(s){
+        var name=s.nachname+', '+s.vorname;
+        var alt=vorhanden[nvNameKey(name)];
+        if(alt){alt.nvId=s.id;return;}
+        kl.schueler.push({id:'s'+Date.now()+Math.random().toString(36).slice(2),name:name,nvId:s.id});
+        neu++;
+      });
+      // Namen wie in der Notenverwaltung sortieren (Nachname, Vorname).
+      kl.schueler.sort(function(a,b){return a.name.localeCompare(b.name,'de');});
+      var nurLokal=kl.schueler.filter(function(s){return !s.nvId;}).length;
+      saveAll();render();
+      toast(neu+' neu übernommen'+(nurLokal?', '+nurLokal+' nur im Kalender':''));
+    })
+    .catch(function(err){toast('Notenverwaltung: '+err.message);});
 }
 
 /* ===== EINZEL-VERLAUF (Trend einer/eines Schueler:in, fuer Gespraeche) ===== */
@@ -1407,6 +1607,44 @@ function renderImport(c){
 }
 
 /* ===== EINSTELLUNGEN ===== */
+// Karte "Notenverwaltung" in den Einstellungen: Status, Verbindungstest und
+// die Liste der verknuepften Klassen.
+function nvKarteHtml(){
+  if(!nvAktiv()){
+    if(!NV.status)return '';
+    return `<div class="card" style="margin-top:14px"><div class="ctit"><i class="ti ti-table" aria-hidden="true"></i>Notenverwaltung</div>
+      <p style="font-size:13px;color:var(--tx2);line-height:1.6">Nicht eingerichtet. Der Server braucht dafür <code>NOTEN_BASE_URL</code> und <code>NOTEN_CLIENT_SECRET</code>.</p></div>`;
+  }
+  const verk=S.klassen.filter(k=>k.nv);
+  const zeilen=verk.length
+    ? verk.map(k=>`<div class="srow"><span>${esc(k.name)}</span><span style="font-weight:600">${esc(k.nv.klasseName)}${k.nv.fachName?' · '+esc(k.nv.fachName):''}</span></div>`).join('')
+    : '<div class="srow"><span style="color:var(--tx3)">Noch keine Klasse verknüpft</span><span></span></div>';
+  return `<div class="card" style="margin-top:14px"><div class="ctit"><i class="ti ti-table" aria-hidden="true"></i>Notenverwaltung</div>
+    <div class="srow"><span>Anmeldung</span><span style="font-weight:600">${NV.status.sso?'Single Sign-on':'getrennt (LDAP)'}</span></div>
+    <div class="srow"><span>Server</span><span style="font-weight:600">${esc(NV.status.url||'–')}</span></div>
+    ${zeilen}
+    <div id="nv-test" style="font-size:12px;color:var(--tx2);margin-top:8px"></div>
+    <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+      <button class="btn" onclick="nvVerbindungTesten()"><i class="ti ti-plug-connected" aria-hidden="true"></i>Verbindung testen</button>
+      ${NV.status.url?`<button class="btn" onclick="nvOeffne('/start')"><i class="ti ti-external-link" aria-hidden="true"></i>Notenverwaltung öffnen</button>`:''}
+    </div></div>`;
+}
+function nvVerbindungTesten(){
+  const el=document.getElementById('nv-test');
+  if(el)el.textContent='Teste…';
+  fetch('/api/noten/status?ping=1',{credentials:'same-origin'})
+    .then(r=>r.json())
+    .then(st=>{
+      NV.status=st;
+      if(!el)return;
+      el.textContent=st.erreichbar
+        ?'Verbindung steht'+(st.version?' (Schema '+st.version+')':'')+'.'
+        :'Nicht erreichbar: '+(st.fehler||'unbekannter Fehler');
+      el.style.color=st.erreichbar?'var(--tx2)':'var(--re)';
+    })
+    .catch(()=>{if(el)el.textContent='Test fehlgeschlagen.';});
+}
+
 function renderEinstellungen(c){
   c.innerHTML=`<div style="max-width:460px">
     <div class="card"><div class="ctit"><i class="ti ti-user" aria-hidden="true"></i>Profil</div>
@@ -1432,6 +1670,7 @@ function renderEinstellungen(c){
         <button class="btn dan" onclick="clearAll()"><i class="ti ti-trash" aria-hidden="true"></i>Alles löschen</button>
       </div>
     </div>
+    ${nvKarteHtml()}
     <div class="card" style="margin-top:14px"><div class="ctit"><i class="ti ti-device-mobile" aria-hidden="true"></i>App installieren</div>
       <p style="font-size:13px;color:var(--tx2);line-height:1.7"><strong>Chrome/Edge:</strong> Adressleiste → Installieren-Symbol<br><strong>iPhone/Safari:</strong> Teilen → Zum Home-Bildschirm<br><strong>Android/Chrome:</strong> Menü → App installieren</p>
     </div>
@@ -1593,6 +1832,7 @@ function renderModal(){
     html=`<div class="modal"><div class="mhd"><div class="mtit">Neue Klasse</div><button class="btn ico" onclick="closeModal()"><i class="ti ti-x"></i></button></div>
       <div class="field"><label>Klasse</label><input type="text" id="nk-n" placeholder="11a BIN"></div>
       <div class="field"><label>Fach</label><input type="text" id="nk-f" placeholder="English"></div>
+      ${nvAktiv()?`<div class="field"><label>Oder aus der Notenverwaltung übernehmen</label><button class="btn sml" onclick="openNvLink('neu')"><i class="ti ti-download"></i>Klasse + Schülerliste holen</button></div>`:''}
       <div class="mfoot"><button class="btn" onclick="closeModal()">Abbrechen</button><button class="btn pri" onclick="saveKlasse()"><i class="ti ti-check"></i>Erstellen</button></div>
     </div>`;
   } else if(type==='editKlasse'){
@@ -1600,12 +1840,20 @@ function renderModal(){
     html=`<div class="modal"><div class="mhd"><div class="mtit">Klasse bearbeiten</div><button class="btn ico" onclick="closeModal()"><i class="ti ti-x"></i></button></div>
       <div class="field"><label>Klasse</label><input type="text" id="ek-n" value="${esc(kl.name||'')}" placeholder="11a BIN"></div>
       <div class="field"><label>Fach</label><input type="text" id="ek-f" value="${esc(kl.fach||'')}" placeholder="English"></div>
+      ${nvAktiv()?`<div class="field"><label>Notenverwaltung</label>${kl.nv
+        ?`<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px;color:var(--tx2)">
+            <span><i class="ti ti-link" aria-hidden="true"></i> ${esc(kl.nv.klasseName)}${kl.nv.fachName?' · '+esc(kl.nv.fachName):''}${kl.nv.schuljahr?' · '+esc(kl.nv.schuljahr):''}</span>
+            <button class="btn sml" onclick="openNvLink('link','${kl.id}')">Ändern</button>
+          </div>`
+        :`<button class="btn sml" onclick="openNvLink('link','${kl.id}')"><i class="ti ti-link"></i>Mit Klasse verknüpfen</button>`}</div>`:''}
       <div class="mfoot">
         <button class="btn dan" onclick="deleteKlasse()"><i class="ti ti-trash"></i>Löschen</button>
         <button class="btn" onclick="closeModal()">Abbrechen</button>
         <button class="btn pri" onclick="saveKlasseEdit()"><i class="ti ti-check"></i>Speichern</button>
       </div>
     </div>`;
+  } else if(type==='nvLink'){
+    html=nvModalHtml();
   } else if(type==='addSuS'){
     const kl=S.klassen.find(k=>k.id===S.selKlasse)||{};
     html=`<div class="modal"><div class="mhd"><div class="mtit">Schüler/in hinzufügen – ${esc(kl.name||'')}</div><button class="btn ico" onclick="closeModal()"><i class="ti ti-x"></i></button></div>

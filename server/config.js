@@ -35,10 +35,35 @@ const config = {
   // Nur wirksam, wenn embedAncestors gesetzt ist.
   embedSameSite: (process.env.EMBED_SAMESITE || 'none').toLowerCase(),
   authMode: AUTH_MODE,
+  // Öffentliche Basis-URL DIESER App (für die SSO-Rücksprungadresse). Leer =
+  // aus dem Request ableiten (funktioniert hinter dem Plesk-Proxy dank
+  // trust proxy), explizit setzen ist aber zuverlässiger.
+  publicUrl: (process.env.PUBLIC_URL || '').replace(/\/+$/, ''),
   devAllowedUsers: (process.env.DEV_ALLOWED_USERS || '')
     .split(',')
     .map((s) => s.trim().toLowerCase())
     .filter(Boolean),
+  // Fallback-Anmeldung, wenn AUTH_MODE=sso: 'none' (nur Single Sign-on),
+  // 'ldap' oder 'dev'. Damit bleibt ein Notausgang, falls die Notenverwaltung
+  // nicht erreichbar ist (siehe server/auth/index.js).
+  ssoFallbackMode: (process.env.SSO_FALLBACK_MODE || 'none').toLowerCase(),
+  // Notenverwaltung (noten_webapp) als Identitätsanbieter UND Datenquelle für
+  // die Klassen-Verknüpfung. Ist notenBaseUrl + notenSecret gesetzt, kann der
+  // Kalender Klassen/Schülerlisten von dort lesen — unabhängig davon, ob die
+  // Anmeldung per SSO läuft (AUTH_MODE=sso) oder weiter per LDAP.
+  noten: {
+    // Basis-URL, die der KALENDER-SERVER erreicht (server-to-server).
+    baseUrl: (process.env.NOTEN_BASE_URL || '').replace(/\/+$/, ''),
+    // Basis-URL für Links/Weiterleitungen im BROWSER (Default: baseUrl).
+    publicUrl: (process.env.NOTEN_PUBLIC_URL || process.env.NOTEN_BASE_URL || '').replace(
+      /\/+$/,
+      ''
+    ),
+    clientId: process.env.NOTEN_CLIENT_ID || 'lehrerkalender',
+    // Gemeinsames Geheimnis; identisch in der Notenverwaltung hinterlegt.
+    clientSecret: process.env.NOTEN_CLIENT_SECRET || '',
+    timeoutMs: parseInt(process.env.NOTEN_TIMEOUT_MS || '8000', 10),
+  },
   // LDAP-/Active-Directory-Konfiguration. Zwei Modi (siehe server/auth/ldap.js):
   //   - Direkt-Bind (empfohlen): LDAP_BIND_USER_TEMPLATE gesetzt -> kein
   //     Service-Account nötig, der Nutzer bindet mit eigener Kennung + Passwort.
@@ -104,8 +129,47 @@ function validate() {
     if (config.ldap.tlsCaPath && !fs.existsSync(config.ldap.tlsCaPath)) {
       errors.push(`LDAP_TLS_CA_PFAD zeigt auf keine existierende Datei: ${config.ldap.tlsCaPath}`);
     }
+  } else if (config.authMode === 'sso') {
+    // Single Sign-on über die Notenverwaltung: ohne Basis-URL und gemeinsames
+    // Geheimnis kann sich niemand mehr anmelden -> hart abbrechen.
+    if (!config.noten.baseUrl) {
+      errors.push('AUTH_MODE=sso, aber NOTEN_BASE_URL fehlt (z. B. https://noten.bbz-rd-eck.com).');
+    }
+    if (!config.noten.clientSecret) {
+      errors.push(
+        'AUTH_MODE=sso, aber NOTEN_CLIENT_SECRET fehlt. Dasselbe Geheimnis muss in der ' +
+          'Notenverwaltung als LK_SSO_SECRET hinterlegt sein (openssl rand -base64 32).'
+      );
+    }
+    if (!['none', 'dev', 'ldap'].includes(config.ssoFallbackMode)) {
+      errors.push(
+        `SSO_FALLBACK_MODE muss "none", "dev" oder "ldap" sein (war "${config.ssoFallbackMode}").`
+      );
+    }
+    if (config.ssoFallbackMode === 'ldap' && !config.ldap.url) {
+      errors.push('SSO_FALLBACK_MODE=ldap, aber LDAP_URL fehlt.');
+    }
   } else if (config.authMode !== 'dev') {
-    errors.push(`Unbekannter AUTH_MODE "${config.authMode}" (erlaubt: dev, ldap).`);
+    errors.push(`Unbekannter AUTH_MODE "${config.authMode}" (erlaubt: dev, ldap, sso).`);
+  }
+
+  // Notenverwaltungs-Anbindung (auch ohne SSO nutzbar): entweder ganz aus oder
+  // vollständig — eine halb gesetzte Konfiguration führt sonst nur zu 502ern.
+  if (config.noten.baseUrl || config.noten.clientSecret) {
+    if (!config.noten.baseUrl) {
+      errors.push('NOTEN_CLIENT_SECRET gesetzt, aber NOTEN_BASE_URL fehlt.');
+    } else if (!/^https?:\/\/[^/]+$/.test(config.noten.baseUrl)) {
+      errors.push(
+        `NOTEN_BASE_URL "${config.noten.baseUrl}" ist keine gültige Basis-URL ` +
+          '(erwartet z. B. "https://noten.bbz-rd-eck.com", ohne Pfad).'
+      );
+    }
+    if (!config.noten.clientSecret) {
+      errors.push('NOTEN_BASE_URL gesetzt, aber NOTEN_CLIENT_SECRET fehlt.');
+    }
+    if (!Number.isFinite(config.noten.timeoutMs) || config.noten.timeoutMs < 500) {
+      errors.push('NOTEN_TIMEOUT_MS muss eine Zahl ≥ 500 sein.');
+    }
   }
 
   // Cross-site-Embedding verlangt SameSite=None -> nur mit Secure-Cookie zulässig

@@ -1,13 +1,29 @@
 'use strict';
 
-// Austauschbare Auth-Schicht: dev (Test-Login) oder ldap.
+// Austauschbare Auth-Schicht: dev (Test-Login), ldap oder sso (Anmeldung über
+// die Notenverwaltung, siehe ./sso.js).
 // Exportiert Login-Handler, Logout-Handler und die requireAuth-Middleware.
 
 const { config } = require('../config');
 const { normalizeUsername } = require('../db/keys');
 
+// Welcher Modus prüft Benutzername/Passwort im Formular? Bei AUTH_MODE=sso ist
+// das der konfigurierte Notausgang (SSO_FALLBACK_MODE), sonst der AUTH_MODE
+// selbst. 'none' = es gibt kein Passwort-Formular.
+function passwortModus() {
+  return config.authMode === 'sso' ? config.ssoFallbackMode : config.authMode;
+}
+
 async function verifyCredentials(username, password) {
-  if (config.authMode === 'ldap') {
+  const modus = passwortModus();
+  if (modus === 'none') {
+    const e = new Error(
+      'Anmeldung nur über die Notenverwaltung möglich (Single Sign-on).'
+    );
+    e.status = 403;
+    throw e;
+  }
+  if (modus === 'ldap') {
     const ldap = require('./ldap');
     // ldap.authenticate liefert bei Erfolg { loginSub, name? }, bei falschen
     // Anmeldedaten null und wirft bei technischen Fehlern (status=502).
@@ -42,7 +58,7 @@ async function loginHandler(req, res) {
   try {
     const user = await verifyCredentials(username, password || '');
     // Anzeigename (falls vom Verzeichnis geliefert) für die Oberfläche mitführen.
-    req.session.user = { username: user.username, name: user.name };
+    req.session.user = { username: user.username, name: user.name, quelle: 'lokal' };
     return res.json({ username: user.username, name: user.name });
   } catch (err) {
     const status = err.status || 401;
@@ -67,4 +83,24 @@ function requireAuth(req, res, next) {
   return res.status(401).json({ error: 'Nicht angemeldet' });
 }
 
-module.exports = { loginHandler, logoutHandler, requireAuth, verifyCredentials };
+// GET /auth/config – öffentlich: Was bietet die Anmeldeseite an?
+// (Ob es einen SSO-Knopf gibt, ob zusätzlich ein Passwort-Formular existiert.)
+function authConfigHandler(req, res) {
+  const sso = require('./sso');
+  res.json({
+    authMode: config.authMode,
+    sso: sso.ssoAktiv(),
+    ssoStartUrl: '/auth/sso/start',
+    passwortLogin: passwortModus() !== 'none',
+    notenUrl: config.noten.publicUrl || null,
+  });
+}
+
+module.exports = {
+  loginHandler,
+  logoutHandler,
+  requireAuth,
+  verifyCredentials,
+  authConfigHandler,
+  passwortModus,
+};

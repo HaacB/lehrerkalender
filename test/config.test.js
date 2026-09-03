@@ -123,3 +123,84 @@ test('validate: EMBED_SAMESITE=lax (same-site) wird akzeptiert', () => {
   });
   assert.match(out, /ok/);
 });
+
+// ── SSO / Notenverwaltungs-Anbindung ─────────────────────────────────────
+test('validate: AUTH_MODE=sso mit Basis-URL und Geheimnis wird akzeptiert', () => {
+  const out = runValidate({
+    AUTH_MODE: 'sso',
+    NOTEN_BASE_URL: 'https://noten.bbz-rd-eck.com',
+    NOTEN_CLIENT_SECRET: 'geheim',
+  });
+  assert.match(out, /ok/);
+});
+
+test('validate: AUTH_MODE=sso ohne NOTEN_BASE_URL scheitert', () => {
+  assert.throws(
+    () => runValidate({ AUTH_MODE: 'sso', NOTEN_CLIENT_SECRET: 'geheim' }),
+    (e) => e.status === 1 && /NOTEN_BASE_URL/.test(String(e.stderr))
+  );
+});
+
+test('validate: AUTH_MODE=sso ohne NOTEN_CLIENT_SECRET scheitert', () => {
+  assert.throws(
+    () => runValidate({ AUTH_MODE: 'sso', NOTEN_BASE_URL: 'https://noten.bbz-rd-eck.com' }),
+    (e) => e.status === 1 && /NOTEN_CLIENT_SECRET/.test(String(e.stderr))
+  );
+});
+
+test('validate: unbekannter SSO_FALLBACK_MODE scheitert', () => {
+  assert.throws(
+    () =>
+      runValidate({
+        AUTH_MODE: 'sso',
+        NOTEN_BASE_URL: 'https://noten.bbz-rd-eck.com',
+        NOTEN_CLIENT_SECRET: 'geheim',
+        SSO_FALLBACK_MODE: 'irgendwas',
+      }),
+    (e) => e.status === 1 && /SSO_FALLBACK_MODE/.test(String(e.stderr))
+  );
+});
+
+test('validate: SSO_FALLBACK_MODE=ldap ohne LDAP_URL scheitert', () => {
+  assert.throws(
+    () =>
+      runValidate({
+        AUTH_MODE: 'sso',
+        NOTEN_BASE_URL: 'https://noten.bbz-rd-eck.com',
+        NOTEN_CLIENT_SECRET: 'geheim',
+        SSO_FALLBACK_MODE: 'ldap',
+      }),
+    (e) => e.status === 1 && /LDAP_URL/.test(String(e.stderr))
+  );
+});
+
+test('validate: halbe Notenverwaltungs-Anbindung (URL ohne Geheimnis) scheitert', () => {
+  assert.throws(
+    () => runValidate({ AUTH_MODE: 'dev', NOTEN_BASE_URL: 'https://noten.bbz-rd-eck.com' }),
+    (e) => e.status === 1 && /NOTEN_CLIENT_SECRET/.test(String(e.stderr))
+  );
+});
+
+test('validate: NOTEN_BASE_URL mit Pfad scheitert', () => {
+  assert.throws(
+    () =>
+      runValidate({
+        AUTH_MODE: 'dev',
+        NOTEN_BASE_URL: 'https://noten.bbz-rd-eck.com/start',
+        NOTEN_CLIENT_SECRET: 'geheim',
+      }),
+    (e) => e.status === 1 && /NOTEN_BASE_URL/.test(String(e.stderr))
+  );
+});
+
+test('validate: Notenverwaltungs-Anbindung ohne SSO (AUTH_MODE=ldap) ist erlaubt', () => {
+  const out = runValidate({
+    AUTH_MODE: 'ldap',
+    LDAP_URL: 'ldaps://dc:636',
+    LDAP_BASE_DN: 'DC=x',
+    LDAP_BIND_USER_TEMPLATE: 'SNRD\\{{username}}',
+    NOTEN_BASE_URL: 'https://noten.bbz-rd-eck.com',
+    NOTEN_CLIENT_SECRET: 'geheim',
+  });
+  assert.match(out, /ok/);
+});
