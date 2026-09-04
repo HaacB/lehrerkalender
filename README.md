@@ -125,6 +125,10 @@ Backups des `data/`-Verzeichnisses **und** des `MASTER_KEY`.
 Ausführliche Anleitung für den Plesk-Server (Node.js/Passenger, Umgebungs­variablen,
 Dokumentenstamm, Deploy nach `git pull`): **[docs/DEPLOYMENT-PLESK.md](docs/DEPLOYMENT-PLESK.md)**.
 
+## Erweiterungen
+
+Es folgen noch Erweiterungen wie eine Notenverwaltung und eine Zeiterfassung
+
 ## Lizenz
 
 [MIT](LICENSE) · Entwickelt mit Claude · BBZ Rendsburg-Eckernförde · 2025/26
