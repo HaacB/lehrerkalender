@@ -1070,6 +1070,7 @@ function nvInit(){
       }
       // Ansichten, die von der Anbindung wissen müssen, neu zeichnen.
       if(NV.status.konfiguriert&&(S.view==='klassen'||S.view==='einstellungen')&&typeof render==='function')render();
+      if(nvAktiv())nvAutoImport();
       return NV.status;
     })
     .catch(function(){NV.status={konfiguriert:false};return NV.status;});
@@ -1203,12 +1204,12 @@ function nvTrennen(){
 // Schuelerliste aus der Notenverwaltung uebernehmen. Bereits vorhandene
 // Namen behalten IHRE Kalender-ID – sonst gingen die Klassenbuch-Eintraege
 // verloren, die an dieser ID haengen. Es wird nur ergaenzt, nie geloescht.
+// Kernlogik ausgelagert (nvSchuelerAbgleichen), damit sowohl der manuelle
+// "Schülerliste"-Knopf als auch der automatische Login-Abgleich (nvAutoImport)
+// dieselbe Merge-Regel verwenden, statt sie zweimal zu pflegen.
 function nvNameKey(n){return String(n||'').toLowerCase().replace(/\s+/g,' ').trim();}
-function nvSchuelerUebernehmen(klId,still){
-  var kl=S.klassen.find(function(k){return k.id===(klId||S.selKlasse);});
-  if(!kl||!kl.nv){toast('Klasse ist nicht verknüpft');return;}
-  if(!still)toast('Schülerliste wird geholt…');
-  fetch('/api/noten/klassen/'+encodeURIComponent(kl.nv.klasseId),{credentials:'same-origin'})
+function nvSchuelerAbgleichen(kl){
+  return fetch('/api/noten/klassen/'+encodeURIComponent(kl.nv.klasseId),{credentials:'same-origin'})
     .then(function(r){return r.json().then(function(j){if(!r.ok)throw new Error(j.error||'Fehler');return j;});})
     .then(function(j){
       var liste=(j.klasse&&j.klasse.schueler)||[];
@@ -1225,10 +1226,72 @@ function nvSchuelerUebernehmen(klId,still){
       // Namen wie in der Notenverwaltung sortieren (Nachname, Vorname).
       kl.schueler.sort(function(a,b){return a.name.localeCompare(b.name,'de');});
       var nurLokal=kl.schueler.filter(function(s){return !s.nvId;}).length;
+      return {neu:neu,nurLokal:nurLokal};
+    });
+}
+function nvSchuelerUebernehmen(klId,still){
+  var kl=S.klassen.find(function(k){return k.id===(klId||S.selKlasse);});
+  if(!kl||!kl.nv){toast('Klasse ist nicht verknüpft');return;}
+  if(!still)toast('Schülerliste wird geholt…');
+  nvSchuelerAbgleichen(kl)
+    .then(function(r){
       saveAll();render();
-      toast(neu+' neu übernommen'+(nurLokal?', '+nurLokal+' nur im Kalender':''));
+      toast(r.neu+' neu übernommen'+(r.nurLokal?', '+r.nurLokal+' nur im Kalender':''));
     })
     .catch(function(err){toast('Notenverwaltung: '+err.message);});
+}
+
+// Automatischer Abgleich beim Anmelden (Notenverwaltung -> Kalender):
+//   - Klassen der Notenverwaltung, die es hier unter demselben Namen schon
+//     gibt, werden automatisch verknüpft (statt den Knopf "Noten verknüpfen"
+//     zu verlangen).
+//   - Klassen, die es hier noch gar nicht gibt, werden neu angelegt.
+// Nichts wird umbenannt, zusammengeführt in einen anderen Namen oder
+// gelöscht -- nur ergänzt, genauso wie beim manuellen Verknüpfen. Läuft
+// einmal je Login/Seitenaufruf (nicht bei jedem Render).
+var __nvAutoImportLaeuft=false;
+function nvAutoImport(){
+  if(!nvAktiv()||__nvAutoImportLaeuft)return;
+  __nvAutoImportLaeuft=true;
+  nvKlassenLaden(true).then(function(list){
+    var neuVerlinkt=0,neuAngelegt=0,frischeKlassen=[];
+    list.forEach(function(nvKl){
+      var schonVerlinkt=S.klassen.some(function(k){return k.nv&&String(k.nv.klasseId)===String(nvKl.id);});
+      if(schonVerlinkt)return;
+      var fach=(nvKl.faecher||[])[0]||null;
+      // Nur mit noch UNVERKNÜPFTEN Klassen abgleichen -- eine bereits mit
+      // einer anderen Noten-Klasse verknüpfte Kalender-Klasse bleibt unberührt.
+      var treffer=S.klassen.find(function(k){return !k.nv&&nvNameKey(k.name)===nvNameKey(nvKl.name);});
+      var kl;
+      if(treffer){
+        kl=treffer;neuVerlinkt++;
+        if(fach&&!kl.fach)kl.fach=fach.name;
+      } else {
+        kl={id:'k'+Date.now()+Math.random().toString(36).slice(2),name:nvKl.name,fach:fach?fach.name:'',schueler:[]};
+        S.klassen.push(kl);neuAngelegt++;
+      }
+      // Kein Fach vorbelegt (fachId:null) -- bei mehreren Fächern lässt sich
+      // aus der Liste allein nicht erraten, welches der Deep-Link treffen
+      // soll; das legt man bei Bedarf über "Ändern" gezielt fest.
+      kl.nv={klasseId:nvKl.id,klasseName:nvKl.name,schuljahr:nvKl.schuljahr||'',fachId:null,fachName:'',verknuepftAm:new Date().toISOString()};
+      frischeKlassen.push(kl);
+    });
+    if(!frischeKlassen.length)return;
+    return Promise.all(frischeKlassen.map(function(kl){
+      return nvSchuelerAbgleichen(kl).catch(function(){return {neu:0,nurLokal:0};});
+    })).then(function(ergebnisse){
+      var totalNeu=ergebnisse.reduce(function(s,r){return s+r.neu;},0);
+      if(!S.selKlasse)S.selKlasse=S.klassen[0].id;
+      saveAll();
+      if((S.view==='klassen'||S.view==='einstellungen')&&typeof render==='function')render();
+      var teile=[];
+      if(neuAngelegt)teile.push(neuAngelegt+' neue Klasse'+(neuAngelegt>1?'n':''));
+      if(neuVerlinkt)teile.push(neuVerlinkt+' verknüpft');
+      if(totalNeu)teile.push(totalNeu+' Schüler:in'+(totalNeu>1?'nen':'')+' übernommen');
+      toast('Notenverwaltung: '+teile.join(', '));
+    });
+  }).catch(function(){/* offline o. Ä. -- beim naechsten Login/Neuladen erneut versucht */})
+    .then(function(){__nvAutoImportLaeuft=false;});
 }
 
 /* ===== EINZEL-VERLAUF (Trend einer/eines Schueler:in, fuer Gespraeche) ===== */
