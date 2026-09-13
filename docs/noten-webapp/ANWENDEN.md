@@ -120,6 +120,48 @@ reply.locals.kalenderUrl = ssoConfig().kalenderUrl || null;
 
 **4. `README.md`** – reine Dokumentation, kann entfallen.
 
+## Zweiter Patch: Embed-Modus (Einbetten im Lehrerkalender)
+
+Zusätzlich zum SSO-Patch oben gibt es `notenverwaltung-embed.patch` — macht
+die Notenverwaltung einbettbar in einen `<iframe>` im Lehrerkalender (eigene
+Ansicht "Notenverwaltung" dort, kein neues Browser-Fenster).
+
+**Voraussetzung: beide Apps auf derselben Basisdomain** (z. B.
+`kalender.bbz-rd-eck.com` + `noten.bbz-rd-eck.com`, beide `bbz-rd-eck.com`).
+Das Session-Cookie ist `SameSite=Lax` — auf unterschiedlichen Basisdomains
+würde der Browser es im Iframe blockieren und die Notenverwaltung zeigt dort
+dauerhaft die Login-Seite.
+
+```bash
+git apply --check /pfad/zu/notenverwaltung-embed.patch
+git apply         /pfad/zu/notenverwaltung-embed.patch
+npm test   # erwartet: bisherige Tests + 4 neue (embed-modus.test.js), alle grün
+git add -A && git commit -m "Embed-Modus fuer die Einbettung im Lehrerkalender"
+```
+
+**Was er macht:**
+
+- `app.js`: `reply.locals.embed` wird über den Fetch-Metadata-Header
+  `Sec-Fetch-Dest: iframe` erkannt — den Browser bei *jeder* Navigation
+  innerhalb eines Iframes automatisch mitschickt (auch bei internen Links,
+  nicht nur beim ersten Laden). Bewusst **kein** Query-Parameter: der müsste
+  bei jedem internen Link mitgeführt werden und bliebe an der Session
+  "kleben", wenn dieselbe Person die App später normal in einem eigenen Tab
+  öffnet.
+- `app.js`: Ist `LEHRERKALENDER_URL` gesetzt, wird zusätzlich
+  `Content-Security-Policy: frame-ancestors 'self' <LEHRERKALENDER_URL>`
+  gesendet — schränkt ein, wer die App überhaupt einbetten darf (vorher:
+  keine Einschränkung). Ohne die Variable bleibt es beim bisherigen
+  (offenen) Verhalten.
+- `views/partials/layout.ejs`: Kopf- und Fußzeile (Navigation,
+  Theme-Umschalter, Logout) werden im Embed-Modus nicht gerendert — sonst
+  zwei Kopfzeilen übereinander. Der restliche Seiteninhalt ist unverändert.
+
+**Bekannte kleine Einschränkung:** `/start` nutzt `min-height: calc(100vh - 220px)`
+für die Kachel-Zentrierung — das rechnet mit der (jetzt fehlenden) Kopf-/
+Fußzeile. Im eingebetteten Zustand bleibt dadurch etwas mehr Leerraum unten;
+rein kosmetisch, nichts ist abgeschnitten oder unbedienbar.
+
 ## Verhalten der Schnittstelle
 
 - Herausgegeben wird nur, worauf die Lehrkraft auch in der Oberfläche

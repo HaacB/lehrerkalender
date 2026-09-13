@@ -141,6 +141,33 @@ Im Kalender kommen die Daten beim Browser über
 `/api/noten/status`, `/api/noten/klassen` und `/api/noten/klassen/:id` an –
 alle hinter `requireAuth`, jeweils nur für die eigene Kennung.
 
+## Einbetten im Kalender
+
+„Notentafel öffnen"/„Noten verknüpfen" führen standardmäßig **innerhalb**
+des Kalenders in eine eigene Ansicht „Notenverwaltung" (Seitenleiste,
+Klassenbuch-Deep-Link, Einstellungen) — kein neues Browser-Fenster. Technisch
+ein `<iframe>`, befüllt über `nvZeige(pfad)`; dank SSO + geteiltem Cookie
+läuft es dort bereits angemeldet. `nvOeffne(pfad)` bleibt als expliziter
+„In neuem Tab öffnen"-Knopf *innerhalb* dieser Ansicht erhalten (z. B. für
+einen eigenen Druck-Dialog oder ein zweites Fenster).
+
+**Voraussetzung: beide Apps auf derselben Basisdomain.** Das Session-Cookie
+der Notenverwaltung ist `SameSite=Lax` — das schickt der Browser bei
+Iframe-Inhalten nur mit, wenn beide Apps dieselbe Basisdomain teilen (z. B.
+`kalender.bbz-rd-eck.com` + `noten.bbz-rd-eck.com`, beide `bbz-rd-eck.com`;
+unterschiedliche Subdomains zählen dafür als „gleiche Seite"). Bei
+unterschiedlichen Basisdomains bliebe im Iframe dauerhaft die Login-Seite
+stehen — Abhilfe nur mit `SameSite=None` (Safari/iPad blockt das i. d. R.
+trotzdem als Dritt-Cookie) oder einem serverseitigen Reverse-Proxy.
+
+Serverseitig nötig:
+- **Kalender**: `frameSrc` in der CSP erlaubt `NOTEN_BASE_URL`
+  (`server/index.js`) — automatisch, sobald `NOTEN_BASE_URL` gesetzt ist.
+- **Notenverwaltung**: Embed-Modus-Patch (`docs/noten-webapp/notenverwaltung-embed.patch`)
+  — blendet die eigene Kopf-/Fußzeile aus, wenn sie eingebettet läuft (erkannt
+  über den Header `Sec-Fetch-Dest: iframe`, kein Query-Parameter), und schickt
+  bei gesetztem `LEHRERKALENDER_URL` ein einschränkendes `frame-ancestors`.
+
 ## Konfiguration
 
 ### Lehrerkalender (`.env`)

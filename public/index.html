@@ -328,7 +328,7 @@ td.ec.tdc{outline:1.5px solid var(--acbor);outline-offset:-1px}
     <div class="nsec">Klassen</div>
     <div class="ni" id="nav-klassen" onclick="showView('klassen')"><i class="ti ti-school" aria-hidden="true"></i><span>Klassenbuch</span></div>
     <!-- Sprung in die Notenverwaltung (gleiche Anmeldung); wird von nvInit() eingeblendet. -->
-    <div class="ni" id="nav-noten" style="display:none" onclick="nvOeffne('/start')" title="Notenverwaltung in neuem Tab öffnen"><i class="ti ti-table" aria-hidden="true"></i><span>Notenverwaltung</span></div>
+    <div class="ni" id="nav-noten" style="display:none" onclick="nvZeige('/start')" title="Notenverwaltung öffnen"><i class="ti ti-table" aria-hidden="true"></i><span>Notenverwaltung</span></div>
     <div class="nsec">Setup</div>
     <div class="ni" id="nav-stundenplan" onclick="showView('stundenplan')"><i class="ti ti-layout-grid" aria-hidden="true"></i><span>Stundenplan</span></div>
     <div class="ni" id="nav-ferien" onclick="showView('ferien')"><i class="ti ti-sun" aria-hidden="true"></i><span>Ferien</span></div>
@@ -358,7 +358,7 @@ td.ec.tdc{outline:1.5px solid var(--acbor);outline-offset:-1px}
 <div class="more-sheet" id="more-sheet">
   <div class="more-item" onclick="navFromMore('ferien')"><i class="ti ti-sun" aria-hidden="true"></i>Ferien</div>
   <div class="more-item" onclick="navFromMore('import')"><i class="ti ti-upload" aria-hidden="true"></i>Import</div>
-  <div class="more-item" id="more-noten" style="display:none" onclick="closeMoreSheet();nvOeffne('/start')"><i class="ti ti-table" aria-hidden="true"></i>Notenverwaltung</div>
+  <div class="more-item" id="more-noten" style="display:none" onclick="closeMoreSheet();nvZeige('/start')"><i class="ti ti-table" aria-hidden="true"></i>Notenverwaltung</div>
   <div class="more-item" onclick="navFromMore('einstellungen')"><i class="ti ti-settings" aria-hidden="true"></i>Einstellungen</div>
 </div>
 <div class="toast" id="toast"></div>
@@ -696,14 +696,14 @@ function render(){
   const c=document.getElementById('content');
   const ta=document.getElementById('topbar-act');
   const vt=document.getElementById('view-title');
-  const titles={woche:'Wochenplan',halbjahr:'Halbjahresübersicht',klassen:'Klassenbuch',stundenplan:'Stundenplan',ferien:'Ferien & Schuljahr',import:'Import',einstellungen:'Einstellungen'};
+  const titles={woche:'Wochenplan',halbjahr:'Halbjahresübersicht',klassen:'Klassenbuch',stundenplan:'Stundenplan',ferien:'Ferien & Schuljahr',import:'Import',einstellungen:'Einstellungen',noten:'Notenverwaltung'};
   vt.textContent=titles[S.view]||'';
   ta.innerHTML='';
   // Sicherheitsnetz: Ein Fehler in einer Ansicht darf nicht den Inhalt "einfrieren"
   // (frueher blieb dann die vorher gezeigte Seite stehen). Stattdessen Fehlermeldung
   // anzeigen und protokollieren.
   try{
-    ({woche:renderWoche,halbjahr:renderHalbjahr,klassen:renderKlassen,stundenplan:renderStundenplan,ferien:renderFerien,import:renderImport,einstellungen:renderEinstellungen})[S.view]?.(c,ta);
+    ({woche:renderWoche,halbjahr:renderHalbjahr,klassen:renderKlassen,stundenplan:renderStundenplan,ferien:renderFerien,import:renderImport,einstellungen:renderEinstellungen,noten:renderNotenverwaltung})[S.view]?.(c,ta);
   }catch(err){
     console.error('Render-Fehler in Ansicht "'+S.view+'":',err);
     c.innerHTML='<div style="padding:24px;max-width:520px"><div style="font-weight:600;color:var(--re);margin-bottom:6px">Diese Ansicht konnte nicht angezeigt werden.</div><div style="font-size:12px;color:var(--tx2)">'+esc(String((err&&err.message)||err))+'</div></div>';
@@ -964,7 +964,7 @@ function nvToolbarHtml(kl){
   const ziel=kl.nv.fachId?('/teacher/fach/'+kl.nv.fachId):('/teacher/klassen/'+kl.nv.klasseId);
   const lbl=kl.nv.fachId?'Notentafel':'Notenverwaltung';
   const tip=esc(kl.nv.klasseName)+(kl.nv.fachName?' · '+esc(kl.nv.fachName):'')+' in der Notenverwaltung öffnen';
-  return `<button class="btn" onclick="nvOeffne('${ziel}')" title="${tip}"><i class="ti ti-external-link" aria-hidden="true"></i>${lbl}</button>
+  return `<button class="btn" onclick="nvZeige('${ziel}')" title="${tip}"><i class="ti ti-external-link" aria-hidden="true"></i>${lbl}</button>
     <button class="btn" onclick="nvSchuelerUebernehmen('${kl.id}')" title="Schülerliste aus der Notenverwaltung auffrischen"><i class="ti ti-refresh" aria-hidden="true"></i>Schülerliste</button>`;
 }
 
@@ -1079,6 +1079,16 @@ function nvAktiv(){return !!(NV.status&&NV.status.konfiguriert);}
 // Link in die Notenverwaltung (leer, wenn keine oeffentliche URL bekannt ist).
 function nvUrl(pfad){var b=NV.status&&NV.status.url;return b?b+pfad:'';}
 function nvOeffne(pfad){var u=nvUrl(pfad);if(u)window.open(u,'_blank','noopener');}
+// Notenverwaltung EINGEBETTET im Kalender zeigen (eigene Ansicht "noten"),
+// statt einen neuen Tab zu oeffnen -- Anmeldung bleibt dieselbe (Single
+// Sign-on + gemeinsame Basisdomain), es fuehlt sich wie ein Bereich der
+// App an. nvOeffne() bleibt als Fallback fuer "In neuem Tab oeffnen"
+// innerhalb dieser Ansicht erhalten.
+function nvZeige(pfad){
+  if(!nvAktiv()){toast('Notenverwaltung ist nicht eingerichtet');return;}
+  S.nvPfad=pfad||'/start';
+  showView('noten');
+}
 
 // Klassenliste der angemeldeten Lehrkraft (einmal je Sitzung gepuffert).
 function nvKlassenLaden(neuLaden){
@@ -1689,7 +1699,7 @@ function nvKarteHtml(){
     <div id="nv-test" style="font-size:12px;color:var(--tx2);margin-top:8px"></div>
     <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
       <button class="btn" onclick="nvVerbindungTesten()"><i class="ti ti-plug-connected" aria-hidden="true"></i>Verbindung testen</button>
-      ${NV.status.url?`<button class="btn" onclick="nvOeffne('/start')"><i class="ti ti-external-link" aria-hidden="true"></i>Notenverwaltung öffnen</button>`:''}
+      ${NV.status.url?`<button class="btn" onclick="nvZeige('/start')"><i class="ti ti-external-link" aria-hidden="true"></i>Notenverwaltung öffnen</button>`:''}
     </div></div>`;
 }
 function nvVerbindungTesten(){
@@ -1744,6 +1754,29 @@ function renderEinstellungen(c){
     </div>
   </div>`;
 }
+
+/* ===== NOTENVERWALTUNG (eingebettet) =====
+   Zeigt die Notenverwaltung in einem <iframe> innerhalb dieser App an
+   (S.nvPfad bestimmt den Pfad, gesetzt von nvZeige()). Funktioniert nur
+   zuverlaessig, wenn beide Apps auf derselben Basisdomain laufen -- sonst
+   blockt der Browser das Session-Cookie im Iframe (SameSite=Lax) und die
+   Notenverwaltung zeigt darin dauerhaft die Login-Seite. */
+function renderNotenverwaltung(c,ta){
+  if(!nvAktiv()){
+    c.innerHTML='<div style="text-align:center;padding:60px 20px;color:var(--tx3)">Notenverwaltung ist nicht eingerichtet.</div>';
+    return;
+  }
+  const pfad=S.nvPfad||'/start';
+  const url=nvUrl(pfad);
+  ta.innerHTML=`<button class="btn" onclick="nvFrameNeuLaden()" title="Eingebettete Ansicht neu laden"><i class="ti ti-refresh" aria-hidden="true"></i>Neu laden</button>
+    <button class="btn" onclick="nvOeffne('${pfad}')" title="In einem eigenen Browser-Tab öffnen"><i class="ti ti-external-link" aria-hidden="true"></i>In neuem Tab öffnen</button>`;
+  c.innerHTML=url
+    ? `<iframe id="nv-frame" src="${esc(url)}" title="Notenverwaltung" style="display:block;width:100%;height:calc(100dvh - 150px);min-height:420px;border:0;border-radius:10px;background:#fff"></iframe>`
+    : '<div style="text-align:center;padding:60px 20px;color:var(--tx3)">Keine Server-Adresse bekannt.</div>';
+}
+// Erzwingt einen Neuladen des Iframes (gleiche src erneut setzen reicht bei
+// <iframe> -- anders als bei window.location ist das kein No-op).
+function nvFrameNeuLaden(){const f=document.getElementById('nv-frame');if(f)f.src=f.src;}
 
 /* ===== MODAL ===== */
 function renderModal(){

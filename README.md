@@ -103,7 +103,9 @@ PUBLIC_URL=https://kalender.bbz-rd-eck.com
 melden sich Lehrkräfte nur noch einmal an. Im Klassenbuch lässt sich jede
 Klasse mit einer Klasse (und optional einem Fach) der Notenverwaltung
 **verknüpfen**: Schülerlisten kommen von dort, ein Knopf springt direkt in
-die Notentafel. Geschrieben wird nichts zurück.
+die Notentafel — eingebettet als eigene Ansicht im Kalender, kein neues
+Browser-Fenster (Voraussetzung: beide Apps auf derselben Basisdomain).
+Geschrieben wird nichts zurück.
 
 Die Datenabrufe laufen server-zu-server (`/api/noten/*` → `/api/extern/*`),
 nicht aus dem Browser – dadurch keine CORS-Regeln und keine Dritt-Cookies

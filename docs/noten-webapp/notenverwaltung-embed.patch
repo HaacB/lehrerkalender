@@ -1,0 +1,164 @@
+diff --git a/app.js b/app.js
+index 90bf46e..3dd9d18 100644
+--- a/app.js
++++ b/app.js
+@@ -155,6 +155,22 @@ export async function buildApp(opts = {}) {
+     // Link "Lehrerkalender" in der Navigation, sobald LEHRERKALENDER_URL gesetzt
+     // ist — dank SSO ohne zweite Anmeldung (siehe src/sso.js).
+     reply.locals.kalenderUrl = ssoConfig().kalenderUrl || null;
++    // Embed-Modus: laeuft diese Seite in einem <iframe> (z. B. im
++    // Lehrerkalender)? Erkennung ueber den Fetch-Metadata-Header
++    // Sec-Fetch-Dest, den Browser bei JEDER Navigation innerhalb eines
++    // Iframes automatisch mitschicken (auch bei internen Links, nicht nur
++    // beim ersten Laden) — kein Query-Parameter noetig, der bei jedem Link
++    // mitgefuehrt werden muesste, und nichts, das ueber die Session hinweg
++    // "kleben bleibt", wenn dieselbe Person die App spaeter normal in einem
++    // eigenen Tab oeffnet. Layout blendet damit Kopfzeile/Fusszeile aus, siehe
++    // views/partials/layout.ejs.
++    reply.locals.embed = request.headers['sec-fetch-dest'] === 'iframe';
++    // Nur den bekannten Lehrerkalender als Einbetter zulassen (statt wie
++    // bisher gar keine Einschraenkung) — sobald LEHRERKALENDER_URL gesetzt
++    // ist. Ohne die Variable bleibt das Verhalten unveraendert (offen).
++    if (reply.locals.kalenderUrl) {
++      reply.header('Content-Security-Policy', `frame-ancestors 'self' ${reply.locals.kalenderUrl}`);
++    }
+     const pending = request.session?.flash;
+     reply.locals.flash = pending && pending.length ? pending : null;
+     if (pending && pending.length) request.session.flash = [];
+diff --git a/test/embed-modus.test.js b/test/embed-modus.test.js
+new file mode 100644
+index 0000000..0d6df75
+--- /dev/null
++++ b/test/embed-modus.test.js
+@@ -0,0 +1,95 @@
++/**
++ * Embed-Modus für die Einbettung im Lehrerkalender (app.js: reply.locals.embed,
++ * views/partials/layout.ejs). Erkennung über den Sec-Fetch-Dest-Header, den
++ * Browser bei jeder Navigation innerhalb eines <iframe> automatisch mitschicken
++ * — kein Query-Parameter, keine Session-Klebrigkeit.
++ */
++
++import { test } from 'node:test';
++import assert from 'node:assert/strict';
++import path from 'node:path';
++import fs from 'node:fs';
++import os from 'node:os';
++
++const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'noten-test-embed-'));
++process.env.DB_PFAD = path.join(tempDir, 'test.sqlite3');
++process.env.SECRET = 'test-secret-fuer-embed-test-bitte-lang-genug-12345';
++process.env.NODE_ENV = 'test';
++process.env.LEHRERKALENDER_URL = 'https://kalender.example.org';
++delete process.env.LDAP_URL;
++
++const { buildApp } = await import('../app.js');
++
++const fastify = await buildApp({ logger: false });
++const base = await fastify.listen({ port: 0, host: '127.0.0.1' });
++
++function client() {
++  const cookies = new Map();
++  function setCookie(header) {
++    if (!header) return;
++    for (const raw of Array.isArray(header) ? header : [header]) {
++      const [pair] = raw.split(';');
++      const [k, ...v] = pair.split('=');
++      cookies.set(k.trim(), v.join('=').trim());
++    }
++  }
++  return async function req(url, opts = {}) {
++    const headers = { ...opts.headers };
++    if (cookies.size) {
++      headers.cookie = Array.from(cookies.entries()).map(([k, v]) => `${k}=${v}`).join('; ');
++    }
++    const r = await fetch(base + url, { ...opts, headers, redirect: 'manual' });
++    const sc = r.headers.getSetCookie ? r.headers.getSetCookie() : r.headers.get('set-cookie');
++    if (sc) setCookie(sc);
++    return r;
++  };
++}
++function form(req, url, body) {
++  return req(url, {
++    method: 'POST',
++    headers: { 'content-type': 'application/x-www-form-urlencoded' },
++    body: new URLSearchParams(body),
++  });
++}
++
++const admin = client();
++await form(admin, '/setup', {
++  username: 'admin', display_name: 'Admin', password: 'adminpass123', password2: 'adminpass123',
++});
++
++test('normale Anfrage (kein Iframe): Kopf- und Fusszeile sind da', async () => {
++  const r = await admin('/start');
++  const html = await r.text();
++  assert.match(html, /<header class="topbar">/);
++  assert.match(html, /<footer class="footer">/);
++});
++
++test('Anfrage mit Sec-Fetch-Dest: iframe: Kopf- und Fusszeile fehlen', async () => {
++  const r = await admin('/start', { headers: { 'sec-fetch-dest': 'iframe' } });
++  const html = await r.text();
++  assert.doesNotMatch(html, /<header class="topbar">/);
++  assert.doesNotMatch(html, /<footer class="footer">/);
++  // Der eigentliche Seiteninhalt bleibt vorhanden, nur die Chrome verschwindet.
++  assert.match(html, /<main class="container">/);
++});
++
++test('CSP frame-ancestors nennt die konfigurierte Kalender-URL', async () => {
++  const r = await admin('/start');
++  assert.equal(r.headers.get('content-security-policy'), "frame-ancestors 'self' https://kalender.example.org");
++});
++
++test('ohne LEHRERKALENDER_URL bleibt das Verhalten unveraendert (kein CSP-Header)', async () => {
++  const original = process.env.LEHRERKALENDER_URL;
++  delete process.env.LEHRERKALENDER_URL;
++  try {
++    const r = await admin('/start');
++    assert.equal(r.headers.get('content-security-policy'), null);
++  } finally {
++    process.env.LEHRERKALENDER_URL = original;
++  }
++});
++
++test.after(async () => {
++  await fastify.close();
++  fs.rmSync(tempDir, { recursive: true, force: true });
++});
+diff --git a/views/partials/layout.ejs b/views/partials/layout.ejs
+index 50f729c..0dc8f58 100644
+--- a/views/partials/layout.ejs
++++ b/views/partials/layout.ejs
+@@ -20,6 +20,11 @@
+   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%93%9D%3C/text%3E%3C/svg%3E">
+ </head>
+ <body>
++<% /* Eingebettet im Lehrerkalender (siehe app.js, Erkennung ueber
++      Sec-Fetch-Dest): eigene Kopf-/Fusszeile ausblenden, damit die
++      Notenverwaltung wie ein Bereich der einbettenden App wirkt statt wie
++      eine zweite App darin. */ %>
++<% if (!(typeof embed !== 'undefined' && embed)) { %>
+ <header class="topbar">
+   <div class="topbar-inner">
+     <a class="brand" href="/">📚 <%= appName %></a>
+@@ -60,6 +65,7 @@
+     </div>
+   </div>
+ </header>
++<% } %>
+ <% if (typeof flash !== 'undefined' && flash && flash.length) { %>
+   <% flash.forEach(function (f) { %>
+     <div class="flash flash-<%= f.type %>"><%= f.message %></div>
+@@ -68,9 +74,11 @@
+ <main class="container">
+ <%- body %>
+ </main>
++<% if (!(typeof embed !== 'undefined' && embed)) { %>
+ <footer class="footer">
+   <small>Notenverwaltung · <%= now.getFullYear() %></small>
+ </footer>
++<% } %>
+ <script>
+   (function () {
+     var buttons = document.querySelectorAll('.theme-switch button');

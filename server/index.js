@@ -34,6 +34,11 @@ app.use(
       directives: {
         defaultSrc: ["'self'"],
         frameAncestors: ["'self'", ...config.embedAncestors],
+        // Notenverwaltung eingebettet im "Notenverwaltung"-Reiter (server/routes
+        // liefert nur die URL, das <iframe> selbst steht in public/index.html).
+        frameSrc: config.noten.publicUrl || config.noten.baseUrl
+          ? ["'self'", config.noten.publicUrl || config.noten.baseUrl]
+          : ["'self'"],
         // App nutzt Inline-<script> und onclick-Handler -> 'unsafe-inline' nötig.
         scriptSrc: ["'self'", "'unsafe-inline'"],
         // helmet setzt sonst script-src-attr 'none' -> blockiert die onclick=""-Handler.
